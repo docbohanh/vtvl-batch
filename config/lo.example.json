@@ -1,0 +1,43 @@
+{
+  "schema": 1,
+  "_huongDan": {
+    "excelFile": "Đường dẫn TƯƠNG ĐỐI với thư mục của tài khoản. Ứng dụng đọc tệp tại: <dataRoot>/<username>/<excelFile>. Với cấu hình này là data/<username>/nguon/<tên tệp>.xlsx, cạnh thư mục ứng dụng (thư mục cha của config). Hãy chép tệp Excel của đơn vị vào đúng chỗ đó; ứng dụng đã tạo sẵn thư mục data/<username>/nguon/. Không dùng đường dẫn tuyệt đối hay '..'. Giao diện hiện đường dẫn đầy đủ và báo nếu chưa có tệp.",
+    "dataRoot": "Thư mục chứa dữ liệu các tài khoản. Tương đối thì tính từ thư mục ứng dụng (cha của config) nếu tệp này nằm trong thư mục tên 'config', ngược lại tính từ thư mục chứa tệp này. Có thể đặt đường dẫn tuyệt đối.",
+    "password": "Mật khẩu cổng của tài khoản (nên điền). Có thì ứng dụng đăng nhập KÊNH DESKTOP (POST /api/v1/auth/desktop/login, token Bearer tự làm mới), kênh duy nhất có quyền sửa/nhập như ứng dụng Desktop. Không có thì chỉ dùng được cookie web dán tay (chỉ xem, cổng từ chối ghi). Chỉ đọc vào bộ nhớ, không ghi lại; tệp này chứa bí mật: không commit, không gửi đi (đã có trong .gitignore).",
+    "duong": "Tùy chọn: 'A' (nhập tệp qua cổng, cần quyền import) hoặc 'B' (gói thay đổi, cần create và update). Bỏ qua để tự chọn theo quyền.",
+    "settings.choPhepGuiThat": "false: chế độ khô, chỉ dựng gói, không gửi lên cổng. Chỉ bật sau khi thử trên đơn vị thử.",
+    "settings.kiemTraScript": "Tập lệnh kiểm tra tệp Excel cục bộ, tính từ thư mục ứng dụng. Đã chép sẵn trong scripts/kiem-tra/ (không cần vtvl_app); cần npm install.",
+    "settings.node": "Lệnh/đường dẫn Node dùng chạy tập lệnh kiểm tra tệp Excel. Mặc định 'node'; nếu ứng dụng không thấy node trong PATH thì đặt đường dẫn đầy đủ.",
+    "settings.nguoiVanHanh": "Người vận hành điền sẵn ở đầu trang (người xác nhận gửi/xóa, ghi vào nhật ký). Sửa được trên giao diện cho phiên làm việc. Mặc định 'Lã Hữu Thành'.",
+    "units": "Có thể thêm đơn vị bằng nút 'Thêm đơn vị' trên giao diện; ứng dụng ghi thêm một mục vào mảng này."
+  },
+  "baseUrl": "https://kekhaivtvl.dcs.vn",
+  "dataRoot": "data",
+  "settings": {
+    "concurrency": 3,
+    "requestIntervalMs": 300,
+    "timeoutSec": 120,
+    "retryCount": 2,
+    "pollIntervalMs": 2000,
+    "changesetMaxChanges": 500,
+    "choPhepXoaDong": true,
+    "choPhepGuiThat": false,
+    "node": "node",
+    "kiemTraScript": "scripts/kiem-tra/cli.mjs",
+    "nguoiVanHanh": "Lã Hữu Thành"
+  },
+  "units": [
+    {
+      "username": "kekhai_nb_dulich",
+      "password": "",
+      "label": "Sở Du lịch",
+      "excelFile": "nguon/Bo_bieu_VTVL_SDL_47.xlsx",
+      "mode": "workbook",
+      "formKey": null,
+      "orgId": null,
+      "periodId": null,
+      "submissionId": null,
+      "enabled": true
+    }
+  ]
+}

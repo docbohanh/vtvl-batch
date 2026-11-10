@@ -1,0 +1,9 @@
+# Dữ liệu đơn vị và bí mật: không commit
+/data/
+/logs/
+/config/lo.json
+/config/units.json
+/dist/
+/node_modules/
+/src-tauri/target/
+/config/lo_*.json

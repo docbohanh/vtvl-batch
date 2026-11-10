@@ -1,0 +1,35 @@
+{
+  "productName": "VTVL Batch",
+  "version": "1.0.0",
+  "identifier": "vn.vtvl.batch",
+  "build": {
+    "frontendDist": "../dist",
+    "devUrl": "http://localhost:1420",
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "VTVL Batch – Quản lý cây đơn vị",
+        "width": 1350,
+        "height": 780,
+        "minWidth": 1350,
+        "minHeight": 600
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ]
+  }
+}

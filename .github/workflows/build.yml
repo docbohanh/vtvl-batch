@@ -1,0 +1,66 @@
+name: Build VTVL Batch
+
+# Dựng bản cài đặt cho Windows và macOS. Chạy tay (Actions → Run workflow) hoặc khi đẩy thẻ v*.
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            nhan: windows-x64
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            nhan: macos-arm64
+          - os: macos-13
+            target: x86_64-apple-darwin
+            nhan: macos-x64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - run: npm ci
+      - run: npm run tauri -- build --target ${{ matrix.target }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vtvl-batch-${{ matrix.nhan }}
+          path: |
+            src-tauri/target/${{ matrix.target }}/release/bundle/**/*.dmg
+            src-tauri/target/${{ matrix.target }}/release/bundle/**/*.msi
+            src-tauri/target/${{ matrix.target }}/release/bundle/**/*-setup.exe
+          if-no-files-found: error
+
+  # Gói đi kèm: tập lệnh kiểm tra tệp Excel và cấu hình mẫu (ứng dụng đọc scripts/ và config/ cạnh thư mục data/).
+  di-kem:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci --omit=dev
+      - run: |
+          mkdir -p goi
+          mkdir -p goi/config
+          cp -r scripts goi/scripts
+          cp config/lo.example.json goi/config/
+          cp -r node_modules goi/node_modules
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vtvl-batch-di-kem
+          path: goi
