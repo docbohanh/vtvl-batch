@@ -7,3 +7,7 @@
 /node_modules/
 /src-tauri/target/
 /config/lo_*.json
+
+# ~/.gitignore_global của máy bỏ qua hai tệp này; CI cần chúng (npm ci, setup-node cache)
+!package.json
+!package-lock.json
