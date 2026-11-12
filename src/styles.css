@@ -623,3 +623,9 @@ button.cay__mui:hover { color: var(--chinh); background: var(--chinh-nen); }
 .tk-qt__nut b { font-weight: 600; max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
 .tk-qt__chua { color: var(--chu-y); font-weight: 600; }
 .tk-qt__doi { font-size: 0.76rem; color: var(--chinh); font-weight: 600; }
+
+/* hai trang trong khung toàn màn hình: Quản trị (giữ nguyên khi ẩn) và giao diện lô */
+.trang-khung { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.trang-khung[hidden] { display: none; }
+.trang-khung--cuon { overflow-y: auto; padding-bottom: 24px; }
+.lo-trang { display: grid; gap: 14px; align-content: start; }
