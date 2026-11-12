@@ -204,7 +204,7 @@ pub fn doc_dong(d: &Value) -> Dong {
 // Gọi cổng (chỉ GET)
 // ---------------------------------------------------------------------------
 
-async fn lay_het_trang(s: &Session, duong: &str, truy_van: &[(&str, &str)], kich_co: usize, toi_da: usize) -> Result<Vec<Value>, String> {
+pub(crate) async fn lay_het_trang(s: &Session, duong: &str, truy_van: &[(&str, &str)], kich_co: usize, toi_da: usize) -> Result<Vec<Value>, String> {
     let mut ra: Vec<Value> = Vec::new();
     for trang in 1..=TOI_DA_TRANG {
         let (t, k) = (trang.to_string(), kich_co.to_string());
@@ -396,7 +396,7 @@ pub async fn qt_dat_tai_khoan(ten_dang_nhap: String, mat_khau: String, state: St
     Ok(tinh_trang(&lo))
 }
 
-fn tep_cache(lo: &crate::Lo) -> std::path::PathBuf {
+pub(crate) fn tep_cache(lo: &crate::Lo) -> std::path::PathBuf {
     lo.root.join("_chung").join("quan-tri.json")
 }
 
@@ -405,7 +405,7 @@ fn dung_ma_ho_so(id: &str) -> Result<(), String> {
 }
 
 /// Phiên quản trị: dùng lại phiên đã mở; `mo_moi` buộc đăng nhập lại.
-async fn phien(state: &AppState, lo: &crate::Lo, mo_moi: bool) -> Result<Session, String> {
+pub(crate) async fn phien(state: &AppState, lo: &crate::Lo, mo_moi: bool) -> Result<Session, String> {
     let mut g = state.phien_quan_tri.lock().await;
     if mo_moi { *g = None; }
     if let Some(s) = g.as_ref() { return Ok(s.clone()); }

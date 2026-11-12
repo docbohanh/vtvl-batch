@@ -4,6 +4,7 @@ import logoCo from './assets/logo-co.png';
 import { docLichSu, ghiLichSu, themLichSu, type MucLichSu } from './lichSuLo';
 import { DangNhapDonViDialog } from './components/DangNhapDonViDialog';
 import { CapNhatPhienBan } from './components/CapNhatPhienBan';
+import { BaoCaoMenu } from './components/BaoCaoMenu';
 import { CongMatKhau } from './components/CongMatKhau';
 import { HopDonVi } from './components/HopDonVi';
 import { IcNguoi, IcThuMuc } from './components/Icons';
@@ -120,6 +121,7 @@ export default function App() {
         </div>
         {trang === 'lo' && don.length > 0 && <div className="thanh-tren__giua"><Tong don={don} loc={loc} onLoc={setLoc} /></div>}
         <div className="thanh-tren__phai">
+          <BaoCaoMenu />
           <CapNhatPhienBan />
           <TaiKhoanQuanTri tinhTrang={tkQuanTri} onXong={(tt) => { setTkQuanTri(tt); setLanDoiTaiKhoan((n) => n + 1); }} />
           <div className="tk-qt">

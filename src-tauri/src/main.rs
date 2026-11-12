@@ -1,6 +1,7 @@
 //! VTVL Batch: quản lý nhiều đơn vị song song (đường B: gói thay đổi).
 //! Luồng: kiểm tra kết nối tất cả → chuẩn bị (kiểm tra Excel, tính thay đổi) → Gửi / Gửi lại / Gửi tất cả. Không tự gửi, không nộp hồ sơ.
 
+mod bao_cao_cay;
 mod cong_mat_khau;
 mod danh_muc;
 mod goi;
@@ -1268,7 +1269,7 @@ fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .manage(AppState::default())
-        .invoke_handler(tauri::generate_handler![khoi_dong_khoa, khoi_tao_lo_trong, kiem_tra_ma, kiem_tra_tep, lay_ket_qua_kiem_tra, lo_nap, them_don_vi, sua_don_vi, xoa_don_vi, lay_bearer, lay_nguoi, chon_excel, chon_ho_so, xoa_dem, tong_quan, gui_buoc_8, xoa_du_lieu, dang_nhap, dat_cookie, dat_nguoi, lay_trang_thai, kiem_tra_ket_noi_tat_ca, tq_lay_cay, tq_tao, quan_tri::qt_tai_khoan, quan_tri::qt_dat_tai_khoan, quan_tri::qt_danh_sach, quan_tri::qt_chi_tiet, quan_tri::qt_bieu, cap_nhat::kiem_tra_cap_nhat, cap_nhat::mo_trang_tai, quan_tri::qt_xuat_excel, tq_xuat_excel, chuan_bi, chuan_bi_tat_ca, gui, gui_lai, gui_tat_ca])
+        .invoke_handler(tauri::generate_handler![khoi_dong_khoa, khoi_tao_lo_trong, kiem_tra_ma, kiem_tra_tep, lay_ket_qua_kiem_tra, lo_nap, them_don_vi, sua_don_vi, xoa_don_vi, lay_bearer, lay_nguoi, chon_excel, chon_ho_so, xoa_dem, tong_quan, gui_buoc_8, xoa_du_lieu, dang_nhap, dat_cookie, dat_nguoi, lay_trang_thai, kiem_tra_ket_noi_tat_ca, tq_lay_cay, tq_tao, quan_tri::qt_tai_khoan, quan_tri::qt_dat_tai_khoan, quan_tri::qt_danh_sach, quan_tri::qt_chi_tiet, quan_tri::qt_bieu, cap_nhat::kiem_tra_cap_nhat, cap_nhat::mo_trang_tai, quan_tri::qt_xuat_excel, bao_cao_cay::bc_cay_trang_thai, bao_cao_cay::bc_cay_xuat, tq_xuat_excel, chuan_bi, chuan_bi_tat_ca, gui, gui_lai, gui_tat_ca])
         .run(tauri::generate_context!())
         .expect("error");
 }
