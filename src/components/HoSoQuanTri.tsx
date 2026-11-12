@@ -108,7 +108,7 @@ export function HoSoQuanTri({ hoSo, onQuanTri }: HoSoQuanTriProps) {
           <p className="hsqt__phu">Tài khoản: {hoSo.taiKhoan.length ? hoSo.taiKhoan.map((t) => <code key={t}>{t}</code>) : <i>chưa có tài khoản gắn với đơn vị này</i>}</p>
         </div>
         <div className="hsqt__nut">
-          <button type="button" className="nut" onClick={() => void xuatExcel()} disabled={!bieu || dangXuat} title="Đọc mọi biểu hiện tại của đơn vị từ cổng và lưu ra tệp Excel (mỗi biểu một sheet)">
+          <button type="button" className="nut" onClick={() => void xuatExcel()} disabled={!bieu || dangXuat} title="Đọc mọi biểu hiện tại của đơn vị từ cổng và lưu thành bộ biểu theo mẫu B30K (Excel, đủ các biểu A1, A2, B1, B2, C1, C2, C3, D1, D2 và dự báo; giữ công thức, khóa, danh sách chọn của mẫu)">
             {dangXuat ? <span className="quay" aria-hidden="true" /> : <IcTaiXuong />} {dangXuat ? 'Đang xuất…' : 'Xuất Excel'}
           </button>
           <button type="button" className="nut" onClick={() => { if (bieuChon) void taiBieu(bieuChon.khoa); }} disabled={!bieuChon || hienTai?.loai === 'dang_tai'} title="Đọc lại biểu đang xem từ cổng">

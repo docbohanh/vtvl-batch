@@ -1,6 +1,6 @@
 {
   "productName": "VTVL Batch",
-  "version": "1.0.10",
+  "version": "1.0.11",
   "identifier": "vn.vtvl.batch",
   "build": {
     "frontendDist": "../dist",

@@ -127,6 +127,8 @@ pub struct DanhSach {
 // Phần thuần: đọc phản hồi của cổng
 // ---------------------------------------------------------------------------
 
+/// Giao diện nhận ra lỗi này (bắt đầu bằng chuỗi này) để hiện danh sách kỳ cho người dùng chọn.
+pub const KHONG_CO_KY_MO: &str = "Cổng không có kỳ kê khai nào đang mở";
 const KHONG_PHAI_QUAN_TRI: &str = "Tài khoản này không có vai trò Quản trị hệ thống (SYSTEM_ADMIN)";
 
 /// Phản hồi `/auth/me` có vai trò quản trị hệ thống không.
@@ -134,12 +136,24 @@ pub fn la_quan_tri(me: &Value) -> bool {
     me["roles"].as_array().is_some_and(|r| r.iter().any(|x| x["role"].as_str() == Some("SYSTEM_ADMIN")))
 }
 
+/// Đọc một kỳ từ phản hồi `/periods`.
+pub fn doc_ky(k: &Value) -> Ky {
+    Ky { id: chuoi(k, "id"), ma: chuoi(k, "code"), ten: chuoi(k, "name"), tu_ngay: chuoi(k, "dateFrom"), den_ngay: chuoi(k, "dateTo"), trang_thai: chuoi(k, "status") }
+}
+
+/// Mọi kỳ của cổng, kỳ đang mở đứng trước rồi đến kỳ mới hơn. Thuần.
+pub fn cac_ky(ky: &Value) -> Vec<Ky> {
+    let mut ra: Vec<Ky> = ky.as_array().map(|a| a.iter().map(doc_ky).collect()).unwrap_or_default();
+    ra.sort_by(|a, b| (b.trang_thai == "OPEN").cmp(&(a.trang_thai == "OPEN")).then_with(|| b.tu_ngay.cmp(&a.tu_ngay)));
+    ra
+}
+
 /// Kỳ hiện tại: ưu tiên kỳ mặc định của tài khoản nếu đang MỞ, không thì kỳ MỞ đầu tiên.
 pub fn chon_ky(ky: &Value, mac_dinh: &str) -> Option<Ky> {
     let ds = ky.as_array()?;
     let mo = |k: &&Value| k["status"].as_str() == Some("OPEN");
     let k = ds.iter().filter(mo).find(|k| chuoi(k, "id") == mac_dinh).or_else(|| ds.iter().find(mo))?;
-    Some(Ky { id: chuoi(k, "id"), ma: chuoi(k, "code"), ten: chuoi(k, "name"), tu_ngay: chuoi(k, "dateFrom"), den_ngay: chuoi(k, "dateTo"), trang_thai: chuoi(k, "status") })
+    Some(doc_ky(k))
 }
 
 pub fn doc_tai_khoan(u: &Value) -> TaiKhoanQt {
@@ -221,12 +235,17 @@ pub(crate) async fn lay_het_trang(s: &Session, duong: &str, truy_van: &[(&str, &
 }
 
 /// Quét một lần: kỳ hiện tại, toàn bộ tài khoản, toàn bộ hồ sơ của kỳ, khung các biểu.
-pub async fn quet(s: &Session, bay_gio: &str) -> Result<DanhSach, String> {
+/// `ky_id`: kỳ do người dùng chọn; không có thì tự chọn kỳ đang mở.
+pub async fn quet(s: &Session, bay_gio: &str, ky_id: Option<&str>) -> Result<DanhSach, String> {
     let me = s.get_json("/auth/me", &[]).await.map_err(loi)?;
     if !la_quan_tri(&me) {
         return Err(KHONG_PHAI_QUAN_TRI.into());
     }
-    let ky = chon_ky(&s.get_json("/periods", &[]).await.map_err(loi)?, me["defaultPeriodId"].as_str().unwrap_or("")).ok_or("Cổng không có kỳ kê khai nào đang mở")?;
+    let ds_ky = s.get_json("/periods", &[]).await.map_err(loi)?;
+    let ky = match ky_id {
+        Some(id) => cac_ky(&ds_ky).into_iter().find(|k| k.id == id).ok_or("Kỳ đã chọn không còn trên cổng")?,
+        None => chon_ky(&ds_ky, me["defaultPeriodId"].as_str().unwrap_or("")).ok_or(KHONG_CO_KY_MO)?,
+    };
     let tai_khoan: Vec<TaiKhoanQt> = lay_het_trang(s, "/admin/users", &[], KICH_CO_TRANG_NGUOI_DUNG, usize::MAX).await?.iter().map(doc_tai_khoan).collect();
     let ho_so_tho = lay_het_trang(s, "/submissions", &[("periodId", &ky.id), ("scope", "SUBTREE")], KICH_CO_TRANG_HO_SO, usize::MAX).await?;
     let ho_so = gan_tai_khoan(ho_so_tho.iter().map(doc_ho_so).collect(), &tai_khoan);
@@ -416,19 +435,27 @@ pub(crate) async fn phien(state: &AppState, lo: &crate::Lo, mo_moi: bool) -> Res
 
 /// Danh sách tài khoản + hồ sơ của kỳ hiện tại. Có cache thì dùng cache; `lam_moi` quét lại trên cổng và ghi đè cache.
 #[tauri::command]
-pub async fn qt_danh_sach(lam_moi: bool, state: State<'_, AppState>) -> Result<DanhSach, String> {
+pub async fn qt_danh_sach(lam_moi: bool, ky_id: Option<String>, state: State<'_, AppState>) -> Result<DanhSach, String> {
     let lo = lay_lo(&state)?;
     let tep = tep_cache(&lo);
     if !lam_moi {
         if let Ok(c) = crate::lo::doc_json::<DanhSach>(&tep) { return Ok(c); }
     }
     let s = phien(&state, &lo, lam_moi).await?;
-    let ds = quet(&s, &crate::lo::bay_gio()).await?;
+    let ds = quet(&s, &crate::lo::bay_gio(), ky_id.as_deref()).await?;
     crate::lo::ghi_json(&tep, &ds)?;
     let mut e = crate::lo::su_kien("quan_tri_quet");
     e.ket_qua = Some("ok");
     let _ = crate::lo::ghi_nhat_ky(&lo.root.join("_chung"), &e);
     Ok(ds)
+}
+
+/// Mọi kỳ hiện có trên cổng, để người dùng chọn khi không tự chọn được kỳ đang mở.
+#[tauri::command]
+pub async fn qt_cac_ky(state: State<'_, AppState>) -> Result<Vec<Ky>, String> {
+    let lo = lay_lo(&state)?;
+    let s = phien(&state, &lo, false).await?;
+    Ok(cac_ky(&s.get_json("/periods", &[]).await.map_err(loi)?))
 }
 
 /// Các biểu của một hồ sơ (số dòng, trạng thái), để dựng tab.
@@ -447,7 +474,7 @@ pub async fn qt_bieu(id_ho_so: String, khoa: String, state: State<'_, AppState>)
     doc_bieu_day_du(&phien(&state, &lo, false).await?, &id_ho_so, &khoa).await
 }
 
-/// Xuất mọi biểu của một hồ sơ (đọc từ cổng) ra tệp Excel `duong_dan`; trả lại đường dẫn đã ghi.
+/// Xuất bộ biểu theo mẫu B30K của một hồ sơ (đọc từ cổng) ra tệp Excel `duong_dan`; trả lại đường dẫn đã ghi.
 #[tauri::command]
 pub async fn qt_xuat_excel(id_ho_so: String, duong_dan: String, state: State<'_, AppState>) -> Result<String, String> {
     dung_ma_ho_so(&id_ho_so)?;
@@ -458,7 +485,10 @@ pub async fn qt_xuat_excel(id_ho_so: String, duong_dan: String, state: State<'_,
     let s = phien(&state, &lo, false).await?;
     let mut cac = Vec::new();
     for b in chi_tiet_ho_so(&s, &id_ho_so).await? { cac.push(doc_bieu_day_du(&s, &id_ho_so, &b.khoa).await?); }
-    crate::xuat_bieu::xuat(&dich, &cac)?;
+    if let Some(b) = cac.iter().find(|b| b.bi_cat) { return Err(format!("Biểu {} quá lớn, chỉ đọc được một phần nên không xuất để tránh thiếu dữ liệu", b.bieu.ma)); }
+    let ks = &lo.cfg.settings.kiem_tra_script;
+    let script = if std::path::Path::new(ks).is_absolute() { std::path::PathBuf::from(ks) } else { lo.goc.join(ks) };
+    crate::xuat_b30k::xuat(&lo.cfg.settings.node, &script, &cac, &dich).await?;
     Ok(dich.to_string_lossy().into_owned())
 }
 
@@ -466,6 +496,13 @@ pub async fn qt_xuat_excel(id_ho_so: String, duong_dan: String, state: State<'_,
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn cac_ky_dua_ky_mo_len_dau_roi_ky_moi_hon() {
+        let ds = json!([{"id": "a", "status": "CLOSED", "dateFrom": "2024-10-01"}, {"id": "b", "status": "CLOSED", "dateFrom": "2025-10-01"}, {"id": "c", "status": "OPEN", "dateFrom": "2023-10-01"}]);
+        assert_eq!(cac_ky(&ds).iter().map(|k| k.id.as_str()).collect::<Vec<_>>(), ["c", "b", "a"]);
+        assert!(cac_ky(&json!({})).is_empty());
+    }
 
     #[test]
     fn chon_ky_uu_tien_ky_mo_mac_dinh_roi_ky_mo_dau_tien() {
@@ -558,7 +595,7 @@ mod tests {
         let (Ok(u), Ok(p)) = (std::env::var("VTVL_TEST_USER"), std::env::var("VTVL_TEST_PASS")) else { panic!("thiếu biến") };
         let tb = ThietBi { id: "33333333-4444-4555-8666-777777777777".into(), ten: "VTVL Batch".into(), phien_ban: "1.2.8".into(), nen_tang: "macos".into() };
         let s = crate::portal::mo_phien("https://kekhaivtvl.dcs.vn", &DangNhap::Desktop { username: &u, password: &p, thiet_bi: &tb }, std::time::Duration::from_secs(60)).await.unwrap();
-        let ds = quet(&s, "now").await.unwrap();
+        let ds = quet(&s, "now", None).await.unwrap();
         let co_tk = ds.ho_so.iter().filter(|h| !h.tai_khoan.is_empty()).count();
         println!("KY {} {} | tai khoan {} | ho so {} (co tai khoan {}) | bieu {:?}", ds.ky.ma, ds.ky.trang_thai, ds.tai_khoan.len(), ds.ho_so.len(), co_tk, ds.bieu.iter().map(|b| (b.ma.clone(), b.cot.len())).collect::<Vec<_>>());
         let ids: std::collections::HashSet<&str> = ds.don_vi.iter().map(|n| n.id.as_str()).collect();

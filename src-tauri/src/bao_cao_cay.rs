@@ -118,6 +118,12 @@ impl Tong {
         Tong { so_ho_so: self.so_ho_so + o.so_ho_so, nhiem_vu: self.nhiem_vu + o.nhiem_vu, cong_viec: self.cong_viec + o.cong_viec, san_pham: self.san_pham + o.san_pham,
                vtvl: self.vtvl + o.vtvl, nhu_cau: self.nhu_cau + o.nhu_cau, b1: self.b1 + o.b1, c3: self.c3 + o.c3, d2 }
     }
+    fn tru(&self, o: &Tong) -> Tong {
+        let mut d2 = [0.0; 5];
+        for i in 0..5 { d2[i] = self.d2[i] - o.d2[i]; }
+        Tong { so_ho_so: self.so_ho_so.saturating_sub(o.so_ho_so), nhiem_vu: self.nhiem_vu - o.nhiem_vu, cong_viec: self.cong_viec - o.cong_viec, san_pham: self.san_pham - o.san_pham,
+               vtvl: self.vtvl - o.vtvl, nhu_cau: self.nhu_cau - o.nhu_cau, b1: self.b1 - o.b1, c3: self.c3 - o.c3, d2 }
+    }
     fn tu(s: &SoLieu) -> Tong {
         let mut d2 = [0.0; 5];
         for (i, y) in NAM_PA.iter().enumerate() { d2[i] = s.d2.get(y).copied().unwrap_or(0.0); }
@@ -309,18 +315,28 @@ fn sheet_tong(ws: &mut Worksheet, cay: &Cay, ds: &DanhSach, k: &KieuO) -> Result
     if let Some(chia) = diem_chia(cay) {
         muc(ws, r, &format!("III. CÁC ĐƠN VỊ TRỰC THUỘC \"{}\" (không gồm UBND xã, phường)", chia.ten))?; r += 1;
         let nhanh = cay.con_co_hs(chia);
+        // Mỗi dòng cơ quan = riêng hồ sơ của cơ quan đó (như Biểu 01 của Ban Tổ chức); đơn vị trực thuộc (trường, trạm, trung tâm…) cộng thành một dòng riêng.
+        let rieng_dong = |n: &NutQt| -> (Tong, Tong) {
+            let tong = cay.tong_cua(n);
+            let own = cay.ho_so.get(n.id.as_str()).map(|x| x.1.clone()).unwrap_or_else(|| tong.clone());
+            let truc_thuoc = tong.tru(&own);
+            (own, truc_thuoc)
+        };
         let mut t3 = cay.ho_so.get(chia.id.as_str()).map(|x| x.1.clone()).unwrap_or_default();
+        let mut tt3 = Tong::default();
         let mut stt = 0usize;
         if cay.ho_so.contains_key(chia.id.as_str()) { stt += 1; dong(ws, r, Some(stt), &format!("{} (riêng đơn vị)", chia.ten), &t3, false)?; r += 1; }
         for n in nhanh.iter().filter(|n| !la_ubnd_co_so(&n.ten)) {
-            stt += 1; let t = cay.tong_cua(n); t3 = t3.cong(&t); dong(ws, r, Some(stt), &n.ten, &t, false)?; r += 1;
+            stt += 1; let (own, tt) = rieng_dong(n); t3 = t3.cong(&own); tt3 = tt3.cong(&tt); dong(ws, r, Some(stt), &n.ten, &own, false)?; r += 1;
         }
+        if tt3.so_ho_so > 0 { dong(ws, r, None, "Đơn vị sự nghiệp trực thuộc các sở, ngành (cộng)", &tt3, false)?; r += 1; t3 = t3.cong(&tt3); }
         dong(ws, r, None, "CỘNG III", &t3, true)?; r += 2;
         muc(ws, r, "IV. ỦY BAN NHÂN DÂN XÃ, PHƯỜNG, ĐẶC KHU")?; r += 1;
-        let (mut t4, mut s4) = (Tong::default(), 0usize);
+        let (mut t4, mut tt4, mut s4) = (Tong::default(), Tong::default(), 0usize);
         for n in nhanh.iter().filter(|n| la_ubnd_co_so(&n.ten)) {
-            s4 += 1; let t = cay.tong_cua(n); t4 = t4.cong(&t); dong(ws, r, Some(s4), &n.ten, &t, false)?; r += 1;
+            s4 += 1; let (own, tt) = rieng_dong(n); t4 = t4.cong(&own); tt4 = tt4.cong(&tt); dong(ws, r, Some(s4), &n.ten, &own, false)?; r += 1;
         }
+        if tt4.so_ho_so > 0 { dong(ws, r, None, "Đơn vị sự nghiệp (trường học, trạm y tế, trung tâm) trực thuộc UBND xã, phường (cộng)", &tt4, false)?; r += 1; t4 = t4.cong(&tt4); }
         dong(ws, r, None, "CỘNG IV", &t4, true)?; r += 2;
         dong(ws, r, None, "TỔNG CỘNG (III + IV)", &t3.cong(&t4), true)?;
     }
@@ -343,17 +359,20 @@ fn diem_chia<'a>(cay: &Cay<'a>) -> Option<&'a NutQt> {
 fn sheet_cay(ws: &mut Worksheet, cay: &Cay, bang: &BangTong, thieu: bool, k: &KieuO) -> Result<(), String> {
     let (ten_sheet, tieu_de_sheet, ghi_chu) = if thieu {
         ("Thiếu PA bố trí 2028-2031", "ĐƠN VỊ THIẾU PHƯƠNG ÁN BỐ TRÍ NĂM 2028 – 2031 (THEO CÂY ĐƠN VỊ)",
-         "Đơn vị có C3 hoặc D2 lớn hơn 0 nhưng D2 bằng 0 hoặc trống ở ít nhất một năm 2028–2031; ô phương án biên chế của năm thiếu tô đỏ. Dòng nhóm (in đậm): cộng của các đơn vị thiếu trong nhánh; cột \"Số hồ sơ\" là số đơn vị thiếu. Bấm +/− ở lề trái để thu gọn / mở nhánh.")
+         "Đơn vị có C3 hoặc D2 lớn hơn 0 nhưng D2 bằng 0 hoặc trống ở ít nhất một năm 2028–2031; ô phương án biên chế của năm thiếu tô đỏ. Các cột chỉ tiêu bên trái là số của chính đơn vị thiếu; khối \"Cộng cả nhánh\" cộng các đơn vị thiếu trong nhánh (\"Số hồ sơ\" là số đơn vị thiếu). Bấm +/− ở lề trái để thu gọn / mở nhánh.")
     } else {
         ("Danh sách đơn vị", "DANH SÁCH ĐƠN VỊ THEO CẤU TRÚC CÂY",
-         "Dòng nhóm (đơn vị cha) in đậm: các cột chỉ tiêu là tổng của đơn vị và mọi đơn vị con (như Biểu 01). Bấm +/− ở lề trái để thu gọn / mở nhánh.")
+         "Các cột chỉ tiêu bên trái là số của chính hồ sơ đơn vị (khớp dòng của Biểu 01); khối \"Cộng cả nhánh\" là tổng đơn vị và mọi đơn vị trực thuộc. Dòng nhóm in đậm. Bấm +/− ở lề trái để thu gọn / mở nhánh.")
     };
     ws.set_name(ten_sheet).map_err(e)?;
     chu(ws, 0, 0, &format!("{} – {tieu_de_sheet}", TEN_BAO_CAO.to_uppercase()), &k.dam14)?;
     chu(ws, 1, 0, ghi_chu, &k.tho)?;
-    let mut cot = vec![Cot::Don("STT"), Cot::Don("Tên đơn vị (theo cây)"), Cot::Don("Mã"), Cot::Don("Cấp"), Cot::Don("Tài khoản"), Cot::Don("Tiến độ (%)"), Cot::Don("Dòng chưa đạt"), Cot::Don("Số hồ sơ")];
+    let mut cot = vec![Cot::Don("STT"), Cot::Don("Tên đơn vị (theo cây)"), Cot::Don("Mã"), Cot::Don("Cấp"), Cot::Don("Tài khoản"), Cot::Don("Tiến độ (%)"), Cot::Don("Dòng chưa đạt")];
     cot.extend(cot_chi_tieu());
     cot.extend([Cot::Don("B1 (người ước lượng)"), Cot::Don("C3: Σ người cần bố trí")]);
+    let mut nhanh_con: Vec<String> = ["Số hồ sơ", "Nhiệm vụ", "Công việc", "Sản phẩm", "VTVL", "Nhu cầu nhân lực"].iter().map(|x| x.to_string()).collect();
+    nhanh_con.extend(NAM_PA.iter().map(|y| format!("PA {y}")));
+    cot.push(Cot::Nhom("Cộng cả nhánh (gồm đơn vị trực thuộc)", nhanh_con));
     if thieu { cot.extend([Cot::Don("Số năm thiếu"), Cot::Don("Năm thiếu")]); }
     let so_cot = tieu_de2(ws, 3, &cot, k)?;
     let mut r = 5u32;
@@ -377,13 +396,21 @@ fn sheet_cay(ws: &mut Worksheet, cay: &Cay, bang: &BangTong, thieu: bool, k: &Ki
         chu(ws, *r, 4, &h.map(|y| y.0.tai_khoan.join(", ")).unwrap_or_default(), ct)?;
         match h { Some((hs, _)) => { ghi_so(ws, *r, 5, hs.tien_do as f64, k, cs)?; ghi_so(ws, *r, 6, hs.dong_chua_dat as f64, k, cs)?; }
                   None => { chu(ws, *r, 5, "", ct)?; chu(ws, *r, 6, "", ct)?; } }
-        ghi_so(ws, *r, 7, t.so_ho_so as f64, k, cs)?;
+        // Khối "riêng": số liệu của chính hồ sơ đơn vị (khớp dòng của Biểu 01). Sheet thiếu PA chỉ hiện khi chính đơn vị thiếu.
         let m = if x.thieu { h.map(|y| nam_thieu(&y.1)).unwrap_or_default() } else { Vec::new() };
-        ghi_chi_tieu(ws, *r, 8, &t, k, cs, std::array::from_fn(|i| m.contains(&NAM_PA[i])))?;
-        ghi_so(ws, *r, 18, t.b1, k, cs)?; ghi_so(ws, *r, 19, t.c3, k, cs)?;
+        match h.filter(|_| !x.thieu || !m.is_empty()) {
+            Some((_, o)) => {
+                ghi_chi_tieu(ws, *r, 7, o, k, cs, std::array::from_fn(|i| m.contains(&NAM_PA[i])))?;
+                ghi_so(ws, *r, 17, o.b1, k, cs)?; ghi_so(ws, *r, 18, o.c3, k, cs)?;
+            }
+            None => for c in 7..19u16 { chu(ws, *r, c, "", ct)?; },
+        }
+        // Khối "cộng cả nhánh": đơn vị và mọi đơn vị trực thuộc.
+        ghi_so(ws, *r, 19, t.so_ho_so as f64, k, cs)?;
+        ghi_chi_tieu(ws, *r, 20, &t, k, cs, [false; 5])?;
         if x.thieu {
-            if m.is_empty() { chu(ws, *r, 20, "", ct)?; chu(ws, *r, 21, "", ct)?; }
-            else { ghi_so(ws, *r, 20, m.len() as f64, k, cs)?; chu(ws, *r, 21, &m.iter().map(|y| y.to_string()).collect::<Vec<_>>().join(", "), ct)?; }
+            if m.is_empty() { chu(ws, *r, 30, "", ct)?; chu(ws, *r, 31, "", ct)?; }
+            else { ghi_so(ws, *r, 30, m.len() as f64, k, cs)?; chu(ws, *r, 31, &m.iter().map(|y| y.to_string()).collect::<Vec<_>>().join(", "), ct)?; }
         }
         for _ in 0..sau.min(7) { ws.group_rows(*r, *r).map_err(e)?; } // mỗi lần gọi tăng một cấp thu gọn
         *r += 1;
@@ -392,7 +419,7 @@ fn sheet_cay(ws: &mut Worksheet, cay: &Cay, bang: &BangTong, thieu: bool, k: &Ki
     }
     let x = Ctx { cay, bang, thieu, k };
     for n in cay.goc.clone() { di(&x, ws, n, 0, &mut r, &mut stt)?; }
-    let rong: [f64; 22] = [6.0, 62.0, 20.0, 7.0, 18.0, 9.0, 9.0, 9.0, 11.0, 11.0, 11.0, 11.0, 13.0, 11.0, 11.0, 11.0, 11.0, 11.0, 13.0, 14.0, 10.0, 22.0];
+    let rong: [f64; 32] = [6.0, 62.0, 20.0, 7.0, 18.0, 9.0, 9.0, 11.0, 11.0, 11.0, 11.0, 13.0, 11.0, 11.0, 11.0, 11.0, 11.0, 13.0, 14.0, 9.0, 11.0, 11.0, 11.0, 11.0, 13.0, 11.0, 11.0, 11.0, 11.0, 11.0, 10.0, 22.0];
     for (c, w) in rong.iter().enumerate().take(so_cot as usize) { ws.set_column_width(c as u16, *w).map_err(e)?; }
     ws.set_freeze_panes(5, 2).map_err(e)?;
     ws.autofilter(4, 0, r.saturating_sub(1).max(5), so_cot - 1).map(|_| ()).map_err(e)

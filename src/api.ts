@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import type { KetQuaKiemTraTep, KetQuaMa, SuaDonVi, TinhTrangKhoa, ThemDonVi, DonVi, DongDem, KetQuaGui, KetQuaXoa, CayDonVi, YeuCauTao, KetQuaTao, DongBaoCao, TongQuan, DanhSachQt, TomTatBieuQt, DuLieuBieuQt, TinhTrangTaiKhoanQt, KetQuaCapNhat } from './types';
+import type { KetQuaKiemTraTep, KetQuaMa, SuaDonVi, TinhTrangKhoa, ThemDonVi, DonVi, DongDem, KetQuaGui, KetQuaXoa, CayDonVi, YeuCauTao, KetQuaTao, DongBaoCao, TongQuan, DanhSachQt, KyQt, TomTatBieuQt, DuLieuBieuQt, TinhTrangTaiKhoanQt, KetQuaCapNhat } from './types';
 
 /** Lời gọi tới các lệnh Tauri (`src-tauri/src/main.rs`). Lỗi trả về là chuỗi tiếng Việt từ phía Rust. */
 export const api = {
@@ -29,7 +29,8 @@ export const api = {
   tqXuatExcel: (hang: DongBaoCao[], tenTep: string) => invoke<string>('tq_xuat_excel', { hang, tenTep }),
   qtTaiKhoan: () => invoke<TinhTrangTaiKhoanQt>('qt_tai_khoan'),
   qtDatTaiKhoan: (tenDangNhap: string, matKhau: string) => invoke<TinhTrangTaiKhoanQt>('qt_dat_tai_khoan', { tenDangNhap, matKhau }),
-  qtDanhSach: (lamMoi: boolean) => invoke<DanhSachQt>('qt_danh_sach', { lamMoi }),
+  qtDanhSach: (lamMoi: boolean, kyId?: string) => invoke<DanhSachQt>('qt_danh_sach', { lamMoi, kyId: kyId ?? null }),
+  qtCacKy: () => invoke<KyQt[]>('qt_cac_ky'),
   qtChiTiet: (idHoSo: string) => invoke<TomTatBieuQt[]>('qt_chi_tiet', { idHoSo }),
   qtBieu: (idHoSo: string, khoa: string) => invoke<DuLieuBieuQt>('qt_bieu', { idHoSo, khoa }),
   qtXuatExcel: (idHoSo: string, duongDan: string) => invoke<string>('qt_xuat_excel', { idHoSo, duongDan }),
@@ -37,6 +38,7 @@ export const api = {
   moTrangTai: (url: string) => invoke<void>('mo_trang_tai', { url }),
   bcCayTrangThai: () => invoke<string | null>('bc_cay_trang_thai'),
   bcCayXuat: (duongDan: string, quetLai: boolean) => invoke<string>('bc_cay_xuat', { duongDan, quetLai }),
+  bcTienDoXuat: (duongDan: string) => invoke<string>('bc_tien_do_xuat', { duongDan }),
   chuanBiTatCa: () => invoke<DonVi[]>('chuan_bi_tat_ca'),
   chuanBi: (username: string) => invoke<void>('chuan_bi', { username }),
   gui: (username: string, soThayDoi: number) => invoke<void>('gui', { username, soThayDoi }),

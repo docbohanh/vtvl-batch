@@ -1,12 +1,15 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, loiThanhChuoi } from '../api';
 import { dinhDangCapNhat } from '../tongQuan';
 import { dungHangCay, locHoSo, NHAN_CHE_DO, NUT_CHUA_XEP, type CheDoLoc } from '../quanTri';
-import type { DanhSachQt, HoSoQt } from '../types';
+import type { DanhSachQt, HoSoQt, KyQt } from '../types';
 import { CayHoSo } from './CayHoSo';
 import { HoSoQuanTri } from './HoSoQuanTri';
 import { IcCanhBao, IcLamMoi, IcTim } from './Icons';
 
+/** Phải khớp `KHONG_CO_KY_MO` ở `quan_tri.rs`. */
+const KHONG_CO_KY_MO = 'Cổng không có kỳ kê khai nào đang mở';
+const NHAN_KY: Record<string, string> = { OPEN: 'đang mở', CLOSED: 'đã đóng' };
 const CAC_CHE_DO = Object.keys(NHAN_CHE_DO) as CheDoLoc[];
 
 export interface QuanTriPageProps {
@@ -27,10 +30,37 @@ export function QuanTriPage({ daNapLo, lanDoiTaiKhoan, onQuanTri }: QuanTriPageP
   const [chon, setChon] = useState<string | null>(null);
   const [moRong, setMoRong] = useState<ReadonlySet<string>>(new Set()); // nhánh đang mở trong cây
 
-  const tai = useCallback(async (lamMoi: boolean) => {
-    setDangQuet(true); setLoi(null);
-    try { setDs(await api.qtDanhSach(lamMoi)); } catch (e) { setLoi(loiThanhChuoi(e)); } finally { setDangQuet(false); }
+  const [cacKy, setCacKy] = useState<KyQt[] | null>(null); // có giá trị khi không tự chọn được kỳ đang mở: người dùng chọn tay
+
+  const tai = useCallback(async (lamMoi: boolean, kyId?: string) => {
+    setDangQuet(true); setLoi(null); setCacKy(null);
+    try {
+      setDs(await api.qtDanhSach(lamMoi, kyId));
+    } catch (e) {
+      const tb = loiThanhChuoi(e);
+      setLoi(tb);
+      if (tb.startsWith(KHONG_CO_KY_MO)) {
+        try { setCacKy(await api.qtCacKy()); } catch (e2) { setLoi(loiThanhChuoi(e2)); }
+      }
+    } finally { setDangQuet(false); }
   }, []);
+
+  const gocKy = useRef<HTMLDivElement>(null);
+  // đóng danh sách kỳ khi bấm ra ngoài hoặc nhấn Esc
+  useEffect(() => {
+    if (!cacKy) return;
+    const ngoai = (e: MouseEvent) => { if (gocKy.current && !gocKy.current.contains(e.target as Node)) setCacKy(null); };
+    const phim = (e: KeyboardEvent) => { if (e.key === 'Escape') setCacKy(null); };
+    document.addEventListener('mousedown', ngoai);
+    document.addEventListener('keydown', phim);
+    return () => { document.removeEventListener('mousedown', ngoai); document.removeEventListener('keydown', phim); };
+  }, [cacKy]);
+
+  /** Bấm lần nữa để đóng. */
+  const moDanhSachKy = async () => {
+    if (cacKy) { setCacKy(null); return; }
+    try { setCacKy(await api.qtCacKy()); } catch (e) { setLoi(loiThanhChuoi(e)); }
+  };
 
   useEffect(() => { if (daNapLo) void tai(false); }, [daNapLo, tai]);
   useEffect(() => { if (lanDoiTaiKhoan > 0) { setChon(null); void tai(true); } }, [lanDoiTaiKhoan, tai]);
@@ -62,11 +92,40 @@ export function QuanTriPage({ daNapLo, lanDoiTaiKhoan, onQuanTri }: QuanTriPageP
   return (
     <div className="qt">
       <div className="qt__thanh">
-        <p className="qt__tom-tat" role="status">
-          {ds ? (
-            <>Kỳ <b>{ds.ky.ma}</b> ({ds.ky.tuNgay} – {ds.ky.denNgay}) · <b>{ds.hoSo.length}</b> hồ sơ · <b>{ds.taiKhoan.length}</b> tài khoản · quét lúc {dinhDangCapNhat(ds.quetLuc)}</>
-          ) : dangQuet ? 'Đang quét cổng lần đầu (tài khoản, hồ sơ, khung biểu), có thể mất vài chục giây…' : ' '}
-        </p>
+        <div className="qt__tom-tat qt__tom-tat--hang">
+          {(ds || cacKy) && (
+            <div className="ky-chon" ref={gocKy}>
+              <button type="button" className="nut ky-nut" onClick={() => { void moDanhSachKy(); }} disabled={dangQuet} aria-haspopup="listbox" aria-expanded={cacKy !== null} aria-controls="ky-ds" title="Bấm để chọn kỳ khác">
+                {ds ? <>Kỳ <b>{ds.ky.ma}</b> ({ds.ky.tuNgay} – {ds.ky.denNgay})</> : 'Chọn kỳ kê khai'} <span className="ky-nut__mui" aria-hidden="true">▾</span>
+              </button>
+              {cacKy && (
+                <ul id="ky-ds" className="ky-ds" role="listbox" aria-label="Chọn kỳ kê khai">
+                  {cacKy.length === 0 && <li className="ky-ds__rong">Cổng chưa có kỳ nào.</li>}
+                  {cacKy.map((k) => {
+                    const dangXem = ds?.ky.id === k.id;
+                    return (
+                      <li key={k.id} role="none">
+                        <button type="button" role="option" aria-selected={dangXem} className={`ky-ds__muc${dangXem ? ' ky-ds__muc--chon' : ''}`} disabled={dangQuet}
+                          onClick={() => { if (dangXem) setCacKy(null); else void tai(true, k.id); }}>
+                          <span className="ky-ds__dau" aria-hidden="true">{dangXem ? '✓' : ''}</span>
+                          <span className="ky-ds__thong-tin">
+                            <b>Kỳ {k.ma || k.ten}</b>
+                            <small>{k.tuNgay} – {k.denNgay}</small>
+                          </span>
+                          <span className={`ky-ds__nhan ky-ds__nhan--${k.trangThai === 'OPEN' ? 'mo' : 'khac'}`}>{NHAN_KY[k.trangThai] ?? k.trangThai}</span>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </div>
+          )}
+          <p role="status">
+            {ds ? <><b>{ds.hoSo.length}</b> hồ sơ · <b>{ds.taiKhoan.length}</b> tài khoản · quét lúc {dinhDangCapNhat(ds.quetLuc)}</>
+              : dangQuet ? 'Đang quét cổng lần đầu (tài khoản, hồ sơ, khung biểu), có thể mất vài chục giây…' : ' '}
+          </p>
+        </div>
         <button type="button" className="nut" onClick={() => { void tai(true); }} disabled={dangQuet} title="Quét lại tài khoản và hồ sơ trên cổng, ghi đè cache">
           {dangQuet ? <span className="quay" aria-hidden="true" /> : <IcLamMoi />} Cập nhật
         </button>

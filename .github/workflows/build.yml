@@ -80,6 +80,7 @@ jobs:
           mkdir -p goi
           mkdir -p goi/config
           cp -r scripts goi/scripts
+          cp -r templates goi/templates
           cp config/lo.example.json goi/config/
           cp -r node_modules goi/node_modules
       - uses: actions/upload-artifact@v4

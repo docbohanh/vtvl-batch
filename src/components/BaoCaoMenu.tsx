@@ -1,15 +1,22 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { IcTaiXuong } from './Icons';
 import { XuatBaoCaoDialog } from './XuatBaoCaoDialog';
+import { XuatTienDoDialog } from './XuatTienDoDialog';
 
 /** Danh mục báo cáo. Thêm báo cáo mới: thêm một mục ở đây và một nhánh trong `HopBaoCao`. */
 export interface MucBaoCao { khoa: string; ten: string; moTa: string }
 export const DANH_MUC_BAO_CAO: readonly MucBaoCao[] = [
   { khoa: 'tong_hop_cay', ten: 'Báo cáo tổng hợp - Biểu 01', moTa: 'Theo cây đơn vị: nhiệm vụ, công việc, sản phẩm, VTVL, nhu cầu nhân lực, phương án biên chế 2027–2031, B1, C3 (Excel 3 sheet)' },
+  { khoa: 'tien_do', ten: 'Báo cáo tiến độ nhập liệu', moTa: 'Đơn vị chưa nhập và đơn vị chậm tiến độ, mỗi loại một sheet, theo cây đơn vị phân cấp' },
 ];
 
 function HopBaoCao({ khoa, onDong }: { khoa: string | null; onDong: () => void }) {
-  return <XuatBaoCaoDialog mo={khoa === 'tong_hop_cay'} onDong={onDong} />;
+  return (
+    <>
+      <XuatBaoCaoDialog mo={khoa === 'tong_hop_cay'} onDong={onDong} />
+      <XuatTienDoDialog mo={khoa === 'tien_do'} onDong={onDong} />
+    </>
+  );
 }
 
 /** Nút "Báo cáo" ở header: bấm mở menu chọn báo cáo cần xuất, chọn xong mở hộp thoại của báo cáo đó. */
