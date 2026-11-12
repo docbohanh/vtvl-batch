@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import type { KetQuaKiemTraTep, KetQuaMa, SuaDonVi, TinhTrangKhoa, ThemDonVi, DonVi, DongDem, KetQuaGui, KetQuaXoa, CayDonVi, YeuCauTao, KetQuaTao, DongBaoCao, TongQuan, DanhSachQt, TomTatBieuQt, DuLieuBieuQt, TinhTrangTaiKhoanQt } from './types';
+import type { KetQuaKiemTraTep, KetQuaMa, SuaDonVi, TinhTrangKhoa, ThemDonVi, DonVi, DongDem, KetQuaGui, KetQuaXoa, CayDonVi, YeuCauTao, KetQuaTao, DongBaoCao, TongQuan, DanhSachQt, TomTatBieuQt, DuLieuBieuQt, TinhTrangTaiKhoanQt, KetQuaCapNhat } from './types';
 
 /** Lời gọi tới các lệnh Tauri (`src-tauri/src/main.rs`). Lỗi trả về là chuỗi tiếng Việt từ phía Rust. */
 export const api = {
@@ -32,6 +32,9 @@ export const api = {
   qtDanhSach: (lamMoi: boolean) => invoke<DanhSachQt>('qt_danh_sach', { lamMoi }),
   qtChiTiet: (idHoSo: string) => invoke<TomTatBieuQt[]>('qt_chi_tiet', { idHoSo }),
   qtBieu: (idHoSo: string, khoa: string) => invoke<DuLieuBieuQt>('qt_bieu', { idHoSo, khoa }),
+  qtXuatExcel: (idHoSo: string, duongDan: string) => invoke<string>('qt_xuat_excel', { idHoSo, duongDan }),
+  kiemTraCapNhat: () => invoke<KetQuaCapNhat>('kiem_tra_cap_nhat'),
+  moTrangTai: (url: string) => invoke<void>('mo_trang_tai', { url }),
   chuanBiTatCa: () => invoke<DonVi[]>('chuan_bi_tat_ca'),
   chuanBi: (username: string) => invoke<void>('chuan_bi', { username }),
   gui: (username: string, soThayDoi: number) => invoke<void>('gui', { username, soThayDoi }),

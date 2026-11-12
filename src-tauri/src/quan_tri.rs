@@ -447,6 +447,21 @@ pub async fn qt_bieu(id_ho_so: String, khoa: String, state: State<'_, AppState>)
     doc_bieu_day_du(&phien(&state, &lo, false).await?, &id_ho_so, &khoa).await
 }
 
+/// Xuất mọi biểu của một hồ sơ (đọc từ cổng) ra tệp Excel `duong_dan`; trả lại đường dẫn đã ghi.
+#[tauri::command]
+pub async fn qt_xuat_excel(id_ho_so: String, duong_dan: String, state: State<'_, AppState>) -> Result<String, String> {
+    dung_ma_ho_so(&id_ho_so)?;
+    let mut dich = std::path::PathBuf::from(duong_dan.trim());
+    if dich.as_os_str().is_empty() { return Err("Chưa chọn nơi lưu tệp".into()); }
+    if dich.extension().is_none_or(|e| !e.eq_ignore_ascii_case("xlsx")) { dich.set_extension("xlsx"); }
+    let lo = lay_lo(&state)?;
+    let s = phien(&state, &lo, false).await?;
+    let mut cac = Vec::new();
+    for b in chi_tiet_ho_so(&s, &id_ho_so).await? { cac.push(doc_bieu_day_du(&s, &id_ho_so, &b.khoa).await?); }
+    crate::xuat_bieu::xuat(&dich, &cac)?;
+    Ok(dich.to_string_lossy().into_owned())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

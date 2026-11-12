@@ -6,8 +6,30 @@ on:
   push:
     tags: ['v*']
 
+permissions:
+  contents: read
+
 jobs:
+  # Khi đẩy thẻ v*: số phiên bản trong ứng dụng phải khớp thẻ, nếu không chức năng "Kiểm tra cập nhật" sẽ báo sai.
+  kiem-tra-phien-ban:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Thẻ phải khớp phiên bản trong tauri.conf.json và Cargo.toml
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          the="${GITHUB_REF_NAME#v}"
+          the="${the%%-*}"
+          conf=$(grep -m1 '"version"' src-tauri/tauri.conf.json | sed -E 's/.*"version": *"([^"]+)".*/\1/')
+          cargo=$(grep -m1 '^version' src-tauri/Cargo.toml | sed -E 's/version *= *"([^"]+)"/\1/')
+          echo "thẻ=$the tauri.conf=$conf Cargo=$cargo"
+          if [ "$the" != "$conf" ] || [ "$the" != "$cargo" ]; then
+            echo "::error::Thẻ $GITHUB_REF_NAME không khớp phiên bản trong tauri.conf.json ($conf) hoặc Cargo.toml ($cargo). Sửa rồi đẩy lại thẻ."
+            exit 1
+          fi
+
   build:
+    needs: kiem-tra-phien-ban
     strategy:
       fail-fast: false
       matrix:
@@ -64,3 +86,25 @@ jobs:
         with:
           name: vtvl-batch-di-kem
           path: goi
+
+  # Chỉ khi cả bản cài đặt lẫn gói đi kèm dựng xong và run được kích hoạt bằng thẻ v*: tạo Release và đính kèm tệp.
+  phat-hanh:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [build, di-kem]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: tep
+      - name: Nén gói đi kèm
+        run: cd tep/vtvl-batch-di-kem && zip -qr ../vtvl-batch-di-kem.zip .
+      - name: Tạo Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          cua_so=$(find tep -type f \( -name '*.msi' -o -name '*-setup.exe' -o -name '*.dmg' -o -name 'vtvl-batch-di-kem.zip' \))
+          [ -n "$cua_so" ] || { echo "::error::Không có tệp nào để đính kèm"; exit 1; }
+          gh release create "$GITHUB_REF_NAME" $cua_so --title "VTVL Batch $GITHUB_REF_NAME" --generate-notes

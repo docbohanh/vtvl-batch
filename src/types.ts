@@ -110,3 +110,12 @@ export interface DuLieuBieuQt { bieu: BieuQt; trangThai: string; tong: number; d
 
 /** Tài khoản quản trị đang dùng (không bao giờ kèm mật khẩu). `nguon`: thiết lập trong ứng dụng, hoặc lấy từ tệp JSON của lô; null = chưa có. */
 export interface TinhTrangTaiKhoanQt { tenDangNhap: string; nguon: 'ung_dung' | 'lo' | null }
+
+/** Kết quả kiểm tra bản mới (`kiem_tra_cap_nhat`). */
+export interface KetQuaCapNhat {
+  hienTai: string;
+  moi: string;
+  coBanMoi: boolean;
+  url: string;
+  ghiChu: string;
+}

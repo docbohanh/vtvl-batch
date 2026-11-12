@@ -643,3 +643,4 @@ button.cay__mui:hover { color: var(--chinh); background: var(--chinh-nen); }
 .thanh-tren--qt .thanh-tren__giua { flex: 1 1 0; display: flex; justify-content: center; min-width: 0; }
 .thanh-tren--qt .nguoi input { width: 210px; }
 @media (max-width: 1699px) { .thanh-tren--qt .thuong-hieu p { display: none; } }
+.cap-nhat { white-space: nowrap; font-size: 12.5px; }

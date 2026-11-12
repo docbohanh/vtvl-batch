@@ -4,7 +4,8 @@ import { dinhDangCapNhat } from '../tongQuan';
 import { dinhDangTong, GIO_MOT_NGUOI_NAM, KHOA_UU_TIEN, nhanBieu, NGUONG_LECH_KHOP, sapTab, soSanhNguoi } from '../quanTri';
 import type { DuLieuBieuQt, HoSoQt, TomTatBieuQt } from '../types';
 import { BangBieu } from './BangBieu';
-import { IcCanhBao, IcLamMoi, IcNguoi } from './Icons';
+import { save } from '@tauri-apps/plugin-dialog';
+import { IcCanhBao, IcLamMoi, IcNguoi, IcTaiXuong } from './Icons';
 
 const NHAN_TRANG_THAI: Record<string, string> = { DRAFT: 'Đang kê khai', SUBMITTED: 'Đã nộp', RETURNED: 'Bị trả lại', APPROVED: 'Đã duyệt' };
 
@@ -23,6 +24,23 @@ export function HoSoQuanTri({ hoSo, onQuanTri }: HoSoQuanTriProps) {
   const [tab, setTab] = useState<string>(KHOA_UU_TIEN[0]);
   const [da, setDa] = useState<Record<string, TaiBieu>>({});
   const lanTai = useRef(0);
+  const [dangXuat, setDangXuat] = useState(false);
+  const [ketQuaXuat, setKetQuaXuat] = useState<{ ok: boolean; noiDung: string } | null>(null);
+
+  async function xuatExcel() {
+    setKetQuaXuat(null);
+    try {
+      const dich = await save({ defaultPath: `${hoSo.ma || hoSo.id}.xlsx`, filters: [{ name: 'Excel', extensions: ['xlsx'] }] });
+      if (!dich) return;
+      setDangXuat(true);
+      const duong = await api.qtXuatExcel(hoSo.id, dich);
+      setKetQuaXuat({ ok: true, noiDung: `Đã xuất: ${duong}` });
+    } catch (e) {
+      setKetQuaXuat({ ok: false, noiDung: loiThanhChuoi(e) });
+    } finally {
+      setDangXuat(false);
+    }
+  }
 
   const taiBieu = useCallback(async (khoa: string) => {
     const lan = lanTai.current;
@@ -90,6 +108,9 @@ export function HoSoQuanTri({ hoSo, onQuanTri }: HoSoQuanTriProps) {
           <p className="hsqt__phu">Tài khoản: {hoSo.taiKhoan.length ? hoSo.taiKhoan.map((t) => <code key={t}>{t}</code>) : <i>chưa có tài khoản gắn với đơn vị này</i>}</p>
         </div>
         <div className="hsqt__nut">
+          <button type="button" className="nut" onClick={() => void xuatExcel()} disabled={!bieu || dangXuat} title="Đọc mọi biểu hiện tại của đơn vị từ cổng và lưu ra tệp Excel (mỗi biểu một sheet)">
+            {dangXuat ? <span className="quay" aria-hidden="true" /> : <IcTaiXuong />} {dangXuat ? 'Đang xuất…' : 'Xuất Excel'}
+          </button>
           <button type="button" className="nut" onClick={() => { if (bieuChon) void taiBieu(bieuChon.khoa); }} disabled={!bieuChon || hienTai?.loai === 'dang_tai'} title="Đọc lại biểu đang xem từ cổng">
             <IcLamMoi /> Tải lại biểu
           </button>
@@ -101,6 +122,7 @@ export function HoSoQuanTri({ hoSo, onQuanTri }: HoSoQuanTriProps) {
         <SoSanhB1C3 soSanh={soSanh} dangTai={bieu !== null && (b1?.loai === 'dang_tai' || c3?.loai === 'dang_tai' || !b1 || !c3)} />
       </header>
 
+      {ketQuaXuat && <p className={`thong-bao${ketQuaXuat.ok ? '' : ' thong-bao--loi'}`} role={ketQuaXuat.ok ? 'status' : 'alert'}>{!ketQuaXuat.ok && <IcCanhBao />}{ketQuaXuat.noiDung}</p>}
       {loiBieu && <p className="thong-bao thong-bao--loi" role="alert"><IcCanhBao />{loiBieu}</p>}
       {!bieu && !loiBieu && <p className="hsqt__trang" role="status"><span className="quay" aria-hidden="true" /> Đang đọc danh sách biểu…</p>}
 
