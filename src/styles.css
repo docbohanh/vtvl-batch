@@ -619,7 +619,7 @@ button.cay__mui:hover { color: var(--chinh); background: var(--chinh-nen); }
 
 /* tài khoản quản trị ở thanh trên */
 .tk-qt { display: grid; gap: 4px; }
-.tk-qt__nut { height: 38px; justify-content: space-between; gap: 12px; min-width: 200px; }
+.tk-qt__nut { height: 38px; justify-content: space-between; gap: 10px; min-width: 150px; }
 .tk-qt__nut b { font-weight: 600; max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
 .tk-qt__chua { color: var(--chu-y); font-weight: 600; }
 .tk-qt__doi { font-size: 0.76rem; color: var(--chinh); font-weight: 600; }
@@ -629,3 +629,11 @@ button.cay__mui:hover { color: var(--chinh); background: var(--chinh-nen); }
 .trang-khung[hidden] { display: none; }
 .trang-khung--cuon { overflow-y: auto; padding-bottom: 24px; }
 .lo-trang { display: grid; gap: 14px; align-content: start; }
+
+/* cụm chip lọc nằm giữa thanh trên cùng, chiếm khoảng trống giữa thương hiệu và các nút bên phải */
+.thanh-tren--qt { flex-wrap: nowrap; gap: 16px; }
+.thanh-tren--qt .thuong-hieu, .thanh-tren--qt .thanh-tren__phai { flex: none; }
+.thanh-tren--qt .thanh-tren__phai { flex-wrap: nowrap; gap: 10px; }
+.thanh-tren--qt .thanh-tren__giua { flex: 1 1 0; display: flex; justify-content: center; min-width: 0; }
+.thanh-tren--qt .nguoi input { width: 210px; }
+@media (max-width: 1699px) { .thanh-tren--qt .thuong-hieu p { display: none; } }

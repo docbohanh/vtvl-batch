@@ -7,6 +7,8 @@ import { CongMatKhau } from './components/CongMatKhau';
 import { HopDonVi } from './components/HopDonVi';
 import { IcNguoi, IcThuMuc } from './components/Icons';
 import { LoPage } from './components/LoPage';
+import { Tong } from './components/Tong';
+import type { LocTrangThai } from './loc';
 import { TaiKhoanQuanTri } from './components/TaiKhoanQuanTri';
 import { QuanTriPage } from './components/QuanTriPage';
 import { UnitCard } from './components/UnitCard';
@@ -29,6 +31,7 @@ export default function App() {
   const [daMo, setDaMo] = useState(true); // NHÁNH ADMIN: tạm bỏ cổng mật khẩu khởi động (đặt false để bật lại; Rust: TAM_BO_MAT_KHAU_KHOI_DONG)
   const [duongDan, setDuongDan] = useState(docDuongDanCu);
   const [trang, setTrang] = useState<'quan_tri' | 'lo'>('quan_tri'); // trang Quản trị luôn được giữ nguyên trạng thái khi xem giao diện lô
+  const [loc, setLoc] = useState<LocTrangThai | null>(null); // bộ lọc trạng thái của giao diện lô (cụm chip ở đầu trang)
   const [lichSu, setLichSu] = useState<MucLichSu[]>(docLichSu);
   const [daNapLo, setDaNapLo] = useState(false);
   const [nguoi, setNguoi] = useState('');
@@ -114,6 +117,7 @@ export default function App() {
             <p>Thẩm định bộ biểu của mọi đơn vị trong kỳ hiện tại</p>
           </div>
         </div>
+        {trang === 'lo' && don.length > 0 && <div className="thanh-tren__giua"><Tong don={don} loc={loc} onLoc={setLoc} /></div>}
         <div className="thanh-tren__phai">
           <TaiKhoanQuanTri tinhTrang={tkQuanTri} onXong={(tt) => { setTkQuanTri(tt); setLanDoiTaiKhoan((n) => n + 1); }} />
           <div className="tk-qt">
@@ -136,7 +140,7 @@ export default function App() {
       </div>
       {trang === 'lo' && (
         <div className="trang-khung trang-khung--cuon">
-          <LoPage daNapLo={daNapLo} duongDan={duongDan} don={don} setDon={setDon} dangBan={dangBan} nguoi={nguoi} thongBao={thongBao} setThongBao={setThongBao} lamMoi={lamMoi} chay={chay} napLo={napLo} setDuongDan={setDuongDan} lichSu={lichSu} capNhatLichSu={capNhatLichSu} />
+          <LoPage daNapLo={daNapLo} duongDan={duongDan} don={don} setDon={setDon} dangBan={dangBan} nguoi={nguoi} thongBao={thongBao} setThongBao={setThongBao} lamMoi={lamMoi} chay={chay} napLo={napLo} setDuongDan={setDuongDan} loc={loc} lichSu={lichSu} capNhatLichSu={capNhatLichSu} />
         </div>
       )}
       <DangNhapDonViDialog hoSo={hoSoHoiMk} onClose={() => setHoSoHoiMk(null)} onXacNhan={themDonViRoiMo} />

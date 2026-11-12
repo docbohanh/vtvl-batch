@@ -9,7 +9,6 @@ import { ChonCauHinh, chonTepCauHinh } from './ChonCauHinh';
 import { IcGui, IcKetNoi, IcKiemTra, IcMoTatCa, IcNguoi, IcThem, IcThuMuc, IcThuTatCa, IcTim } from './Icons';
 import { TaoTaiKhoanDialog } from './TaoTaiKhoanDialog';
 import { ThemDonViDialog } from './ThemDonViDialog';
-import { Tong } from './Tong';
 import { UnitCard } from './UnitCard';
 
 export interface LoPageProps {
@@ -25,19 +24,20 @@ export interface LoPageProps {
   chay: (username: string, viec: () => Promise<unknown>) => Promise<void>;
   napLo: (duongDan: string) => Promise<void>;
   setDuongDan: (p: string) => void;
+  /** Bộ lọc trạng thái chọn từ cụm chip ở đầu trang (do trang cha giữ). */
+  loc: LocTrangThai | null;
   lichSu: MucLichSu[];
   capNhatLichSu: (moi: MucLichSu[]) => void;
 }
 
 /** Giao diện theo lô (tệp JSON): chọn tệp lô, thêm đơn vị, kiểm tra kết nối, chuẩn bị, gửi tất cả và danh sách thẻ đơn vị. */
-export function LoPage({ daNapLo, duongDan, don, setDon, dangBan, nguoi, thongBao, setThongBao, lamMoi, chay, napLo, setDuongDan, lichSu, capNhatLichSu }: LoPageProps) {
+export function LoPage({ daNapLo, duongDan, don, setDon, dangBan, nguoi, thongBao, setThongBao, lamMoi, chay, napLo, setDuongDan, loc, lichSu, capNhatLichSu }: LoPageProps) {
   const [toanCuc, setToanCuc] = useState(false);
   const [xacNhan, setXacNhan] = useState(false);
   const [moThem, setMoThem] = useState(false);
   const [moTaoTk, setMoTaoTk] = useState(false);
   const [tim, setTim] = useState('');
   const [dangMo, setDangMo] = useState<ReadonlySet<string>>(new Set()); // đơn vị đang mở rộng; mặc định (kể cả đơn vị mới thêm) là thu gọn
-  const [loc, setLoc] = useState<LocTrangThai | null>(null);
   const hopXacNhan = useRef<HTMLDialogElement>(null);
 
   useEffect(() => {
@@ -84,7 +84,6 @@ export function LoPage({ daNapLo, duongDan, don, setDon, dangBan, nguoi, thongBa
 
   return (
     <div className="lo-trang">
-      {don.length > 0 && <Tong don={don} loc={loc} onLoc={setLoc} />}
         <section className="bang-dieu-khien" aria-label="Điều khiển lô">
           <ChonCauHinh duongDan={duongDan} dangBan={bao} onChon={(p) => { setDuongDan(p); void napLo(p); }} onNapLai={() => { void napLo(duongDan); }} lichSu={lichSu} onChonLichSu={(p) => { setDuongDan(p); void napLo(p); }} onXoaLichSu={(p) => capNhatLichSu(xoaMucLichSu(lichSu, p))} onXoaHetLichSu={() => capNhatLichSu([])} />
           {don.length > 0 && (
