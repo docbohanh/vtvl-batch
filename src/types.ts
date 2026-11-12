@@ -119,3 +119,6 @@ export interface KetQuaCapNhat {
   url: string;
   ghiChu: string;
 }
+
+/** Kết quả `tham_dinh_excel`: mọi biểu có trong tệp, cùng dạng với biểu đọc từ cổng. */
+export interface KetQuaThamDinh { tenTep: string; kichThuoc: number; tongDong: number; dongLoi: number; canhBao: string[]; bieu: DuLieuBieuQt[] }

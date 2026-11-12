@@ -81,6 +81,8 @@ export async function kiemTraLocal(buffer, catalogs = {}, { kieu = 'full', formK
   const ketQua = { tong_dong: tong, dong_loi: dong, dong_hop_le: Math.max(0, tong - dong), sheets, loi, canh_bao: canhBao, tai_may: true, phien_ban_quy_tac: PHIEN_BAN_QUY_TAC };
   if (!coDong) return ketQua;
   const cotNhap = Object.fromEntries(doc.sheets.map((s) => [s.form, COLS[s.form].filter((c) => c.kind !== 'COMPUTED').map((c) => c.letter)]));
-  return { ...ketQua, dong: Object.fromEntries(doc.sheets.map((s) => [s.form, s.rows])), cot_nhap: cotNhap };
+  // `cot`: định nghĩa đủ cột (chữ, tiêu đề, loại, kiểu) của các biểu có trong tệp, để giao diện dựng bảng xem
+  const cot = Object.fromEntries(doc.sheets.map((s) => [s.form, COLS[s.form].map((c) => ({ letter: c.letter, title: c.title, kind: c.kind, type: c.type }))]));
+  return { ...ketQua, dong: Object.fromEntries(doc.sheets.map((s) => [s.form, s.rows])), cot_nhap: cotNhap, cot };
 }
 

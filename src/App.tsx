@@ -3,18 +3,20 @@ import { api, loiThanhChuoi } from './api';
 import logoCo from './assets/logo-co.png';
 import { docLichSu, ghiLichSu, themLichSu, type MucLichSu } from './lichSuLo';
 import { DangNhapDonViDialog } from './components/DangNhapDonViDialog';
+import { open } from '@tauri-apps/plugin-dialog';
+import { ThamDinhExcelPage } from './components/ThamDinhExcelPage';
 import { CapNhatPhienBan } from './components/CapNhatPhienBan';
 import { BaoCaoMenu } from './components/BaoCaoMenu';
 import { CongMatKhau } from './components/CongMatKhau';
 import { HopDonVi } from './components/HopDonVi';
-import { IcThuMuc } from './components/Icons';
+import { IcKiemTra, IcThuMuc } from './components/Icons';
 import { LoPage } from './components/LoPage';
 import { Tong } from './components/Tong';
 import type { LocTrangThai } from './loc';
 import { TaiKhoanQuanTri } from './components/TaiKhoanQuanTri';
 import { QuanTriPage } from './components/QuanTriPage';
 import { UnitCard } from './components/UnitCard';
-import type { DonVi, HoSoQt, TinhTrangTaiKhoanQt } from './types';
+import type { DonVi, HoSoQt, KetQuaThamDinh, TinhTrangTaiKhoanQt } from './types';
 import './styles.css';
 
 const CHU_KY_MS = 1000;
@@ -32,7 +34,7 @@ function nhoDuongDan(p: string): void {
 export default function App() {
   const [daMo, setDaMo] = useState(true); // NHÁNH ADMIN: tạm bỏ cổng mật khẩu khởi động (đặt false để bật lại; Rust: TAM_BO_MAT_KHAU_KHOI_DONG)
   const [duongDan, setDuongDan] = useState(docDuongDanCu);
-  const [trang, setTrang] = useState<'quan_tri' | 'lo'>('quan_tri'); // trang Quản trị luôn được giữ nguyên trạng thái khi xem giao diện lô
+  const [trang, setTrang] = useState<'quan_tri' | 'lo' | 'excel'>('quan_tri'); // trang Quản trị luôn được giữ nguyên trạng thái khi xem giao diện lô
   const [loc, setLoc] = useState<LocTrangThai | null>(null); // bộ lọc trạng thái của giao diện lô (cụm chip ở đầu trang)
   const [lichSu, setLichSu] = useState<MucLichSu[]>(docLichSu);
   const [daNapLo, setDaNapLo] = useState(false);
@@ -42,6 +44,10 @@ export default function App() {
   const [thongBao, setThongBao] = useState<string | null>(null);
   const [tkQuanTri, setTkQuanTri] = useState<TinhTrangTaiKhoanQt | null>(null);
   const [lanDoiTaiKhoan, setLanDoiTaiKhoan] = useState(0); // tăng mỗi lần thiết lập tài khoản quản trị mới: quét lại cây đơn vị
+  const [kqExcel, setKqExcel] = useState<KetQuaThamDinh | null>(null); // kết quả thẩm định Excel độc lập (chỉ giữ trong bộ nhớ)
+  const [dangThamDinh, setDangThamDinh] = useState(false);
+  const [loiExcel, setLoiExcel] = useState<string | null>(null);
+  const [lanNapExcel, setLanNapExcel] = useState(0);
   const [donMo, setDonMo] = useState<string | null>(null); // tên đăng nhập của đơn vị đang mở trong hộp thoại
   const [hoSoHoiMk, setHoSoHoiMk] = useState<HoSoQt | null>(null); // hồ sơ của đơn vị chưa có trong lô: đang hỏi tài khoản + mật khẩu
 
@@ -80,6 +86,18 @@ export default function App() {
     const ten = tkQuanTri?.tenDangNhap;
     if (ten && ten !== nguoi) { setNguoi(ten); void api.datNguoi(ten); }
   }, [tkQuanTri?.tenDangNhap, nguoi]);
+
+  /** Chọn một tệp Excel bộ biểu trên máy và thẩm định độc lập; xong thì mở trang xem biểu. */
+  const thamDinhExcel = useCallback(async () => {
+    setLoiExcel(null);
+    try {
+      const p = await open({ multiple: false, directory: false, filters: [{ name: 'Excel', extensions: ['xlsx'] }] });
+      if (typeof p !== 'string') return;
+      setTrang('excel'); setDangThamDinh(true); setKqExcel(null);
+      setKqExcel(await api.thamDinhExcel(p));
+      setLanNapExcel((n) => n + 1);
+    } catch (e) { setLoiExcel(loiThanhChuoi(e)); } finally { setDangThamDinh(false); }
+  }, []);
 
   const capNhatLichSu = (moi: MucLichSu[]) => { setLichSu(moi); ghiLichSu(moi); };
 
@@ -128,6 +146,12 @@ export default function App() {
         <div className="thanh-tren__phai">
           {trang !== 'lo' && (
             <>
+              <div className="tk-qt">
+                <span className="nhan-truong"><IcKiemTra /> Thẩm định Excel</span>
+                <button type="button" className="nut tk-qt__nut" onClick={() => void thamDinhExcel()} disabled={dangThamDinh} title="Tải một tệp bộ biểu Excel lên để thẩm định độc lập (không đăng nhập, không gửi lên cổng)">
+                  <IcKiemTra /> Thẩm định Excel
+                </button>
+              </div>
               <BaoCaoMenu />
               <CapNhatPhienBan />
               <TaiKhoanQuanTri tinhTrang={tkQuanTri} onXong={(tt) => { setTkQuanTri(tt); setLanDoiTaiKhoan((n) => n + 1); }} />
@@ -144,6 +168,11 @@ export default function App() {
 
       {trang === 'quan_tri' && thongBao && <p className="thong-bao thong-bao--loi" role="alert">{thongBao}</p>}
 
+      {trang === 'excel' && (
+        <div className="trang-khung">
+          <ThamDinhExcelPage kq={kqExcel} dangChay={dangThamDinh} loi={loiExcel} lanNap={lanNapExcel} onChonTep={() => void thamDinhExcel()} onVe={() => setTrang('quan_tri')} />
+        </div>
+      )}
       <div className="trang-khung" hidden={trang !== 'quan_tri'}>
         <QuanTriPage daNapLo={daNapLo} lanDoiTaiKhoan={lanDoiTaiKhoan} onQuanTri={moDonVi} />
       </div>

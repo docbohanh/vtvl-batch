@@ -42,6 +42,18 @@ pub struct KetQuaKiemTra {
     pub dong: BTreeMap<String, Vec<DongTho>>,
     #[serde(default)]
     pub cot_nhap: BTreeMap<String, Vec<String>>,
+    /// Định nghĩa đủ cột của từng biểu có trong tệp (chỉ khi gọi với `--co-dong`).
+    #[serde(default)]
+    pub cot: BTreeMap<String, Vec<CotTho>>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct CotTho {
+    pub letter: String,
+    pub title: String,
+    pub kind: String,
+    #[serde(rename = "type")]
+    pub kieu: String,
 }
 
 impl KetQuaKiemTra {

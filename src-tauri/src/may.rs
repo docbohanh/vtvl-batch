@@ -31,6 +31,7 @@ pub fn mac_tu_ifconfig(ra: &str) -> Option<String> {
 }
 
 /// Windows: kết quả `getmac /fo csv /nh`, mỗi dòng `"AA-BB-…","\Device\…"`; bỏ dòng ngắt kết nối.
+#[cfg_attr(not(target_os = "windows"), allow(dead_code))] // chỉ Windows gọi; vẫn giữ để kiểm thử trên mọi hệ điều hành
 pub fn mac_tu_getmac(ra: &str) -> Option<String> {
     ra.lines().filter(|l| !l.contains("disconnected") && !l.contains("Media disconnected"))
         .find_map(|l| chuan_mac(l.trim().trim_start_matches('"').split('"').next()?))

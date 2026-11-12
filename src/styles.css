@@ -700,3 +700,4 @@ button.cay__mui:hover { color: var(--chinh); background: var(--chinh-nen); }
 .thanh-tren--qt .tk-qt__nut b { max-width: 150px; }
 .thanh-tren--qt .nut svg { width: 14px; height: 14px; }
 .thanh-tren--qt .thuong-hieu p { display: none; }
+.thanh-tren--qt .tk-qt__nut { justify-content: center; }
