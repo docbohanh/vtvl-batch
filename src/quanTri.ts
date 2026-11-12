@@ -59,3 +59,75 @@ export function locDong(dong: readonly DongQt[], tim: string, chiLoi: boolean): 
     return !q || boDau(Object.values(d.duLieu).map(hienGiaTri).join(' ')).includes(q);
   });
 }
+
+// ---------------------------------------------------------------------------
+// Công cụ thẩm định theo từng biểu: sắp xếp/lọc số, tổng, lọc năm, ước tính số người
+// ---------------------------------------------------------------------------
+
+/** Số giờ làm việc một người trong một năm, dùng quy đổi giờ → số người (cùng định mức C3: 1.904 giờ). */
+export const GIO_MOT_NGUOI_NAM = 1904;
+
+export type HuongSapXep = 'giam' | 'tang';
+
+/** Cách thẩm định riêng của từng biểu; chữ là chữ cột trong khung biểu (B1: D = phút/SP, G = giờ tổng; D2: B = năm). */
+export interface CauHinhBieu {
+  /** Cột số cho phép sắp xếp và lọc "≥". */
+  sapXepLoc?: { cot: string; nhan: string };
+  /** Hiện dòng tổng trên cùng; `loaiTru` là các cột số không được cộng (ví dụ năm). */
+  tong?: { loaiTru: readonly string[] };
+  /** Nút lọc theo năm theo giá trị của cột này. */
+  locNam?: { cot: string };
+  /** Ước tính số người = tổng cột giờ ÷ 1.904. */
+  soNguoi?: { cotGio: string };
+}
+
+export const CAU_HINH_BIEU: Readonly<Record<string, CauHinhBieu>> = {
+  b1: { sapXepLoc: { cot: 'D', nhan: 'Phút/SP (D)' }, soNguoi: { cotGio: 'G' } },
+  c3: { tong: { loaiTru: [] } },
+  d2: { tong: { loaiTru: ['B'] }, locNam: { cot: 'B' } },
+};
+
+/** Đọc số từ ô (số, hoặc chuỗi kiểu 1.234,5 / 1234.5); không đọc được thì null. */
+export function soTuO(v: unknown): number | null {
+  if (typeof v === 'number') return Number.isFinite(v) ? v : null;
+  if (typeof v !== 'string') return null;
+  let t = v.trim().replace(/\s/g, '');
+  if (!t || !/^[-+]?[\d.,]+$/.test(t)) return null;
+  if (t.includes(',') && t.includes('.')) t = t.replace(/\./g, '').replace(',', '.');
+  else if (t.includes(',')) t = t.replace(',', '.');
+  const n = Number(t);
+  return Number.isFinite(n) ? n : null;
+}
+
+/** Giữ dòng có giá trị cột `cot` ≥ `nguong`; ô trống hoặc không phải số bị loại. */
+export function locTuMuc(dong: readonly DongQt[], cot: string, nguong: number): DongQt[] {
+  return dong.filter((d) => { const n = soTuO(d.duLieu[cot]); return n !== null && n >= nguong; });
+}
+
+/** Sắp xếp theo cột số (ổn định); ô trống/không phải số luôn xuống cuối, dù tăng hay giảm. */
+export function sapXepCot(dong: readonly DongQt[], cot: string, huong: HuongSapXep): DongQt[] {
+  const k = huong === 'giam' ? -1 : 1;
+  return dong
+    .map((d, i) => ({ d, i, n: soTuO(d.duLieu[cot]) }))
+    .sort((a, b) => (a.n === null ? (b.n === null ? a.i - b.i : 1) : b.n === null ? -1 : (a.n - b.n) * k || a.i - b.i))
+    .map((x) => x.d);
+}
+
+/** Tổng một cột số (bỏ ô trống). */
+export function tongCot(dong: readonly DongQt[], cot: string): number {
+  return dong.reduce((t, d) => t + (soTuO(d.duLieu[cot]) ?? 0), 0);
+}
+
+/** Các năm xuất hiện trong cột năm, tăng dần. */
+export function cacNam(dong: readonly DongQt[], cot: string): number[] {
+  return [...new Set(dong.map((d) => soTuO(d.duLieu[cot])).filter((n): n is number => n !== null))].sort((a, b) => a - b);
+}
+
+export function locNam(dong: readonly DongQt[], cot: string, nam: number | null): DongQt[] {
+  return nam === null ? [...dong] : dong.filter((d) => soTuO(d.duLieu[cot]) === nam);
+}
+
+export const gioSangNguoi = (gio: number): number => gio / GIO_MOT_NGUOI_NAM;
+
+/** Số kiểu Việt Nam, tối đa `soLe` chữ số thập phân. */
+export const dinhDangTong = (n: number, soLe = 2): string => n.toLocaleString('vi-VN', { maximumFractionDigits: soLe });

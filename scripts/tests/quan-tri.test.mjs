@@ -57,3 +57,55 @@ test('lọc dòng: chỉ dòng lỗi và tìm trong mọi ô', () => {
   assert.equal(locDong(dong, '', false).length, 3);
   assert.equal(boDau('Đà Nẵng'), 'da nang');
 });
+
+import { soTuO, locTuMuc, sapXepCot, tongCot, cacNam, locNam, gioSangNguoi, CAU_HINH_BIEU, GIO_MOT_NGUOI_NAM } from '../../src/quanTri.ts';
+
+const dg = (so, duLieu) => ({ so, duLieu, trangThai: 'OK', loi: [], capNhat: '' });
+
+test('đọc số từ ô: số, chuỗi kiểu Việt/Anh, ô trống hoặc chữ là null', () => {
+  assert.equal(soTuO(48), 48);
+  assert.equal(soTuO('48'), 48);
+  assert.equal(soTuO('1.234,5'), 1234.5);
+  assert.equal(soTuO('1234.5'), 1234.5);
+  assert.equal(soTuO('0,5'), 0.5);
+  assert.equal(soTuO(' 12 '), 12);
+  for (const v of [null, undefined, '', 'abc', '12 giờ', true, NaN]) assert.equal(soTuO(v), null, String(v));
+});
+
+test('lọc ≥: ví dụ ≥ 1000 chỉ giữ dòng từ 1000 trở lên, ô trống bị loại, đúng ngưỡng vẫn giữ', () => {
+  const d = [dg(1, { D: '999' }), dg(2, { D: '1000' }), dg(3, { D: 1500 }), dg(4, { D: null }), dg(5, { D: 'x' })];
+  assert.deepEqual(locTuMuc(d, 'D', 1000).map((x) => x.so), [2, 3]);
+  assert.deepEqual(locTuMuc(d, 'D', 0).map((x) => x.so), [1, 2, 3]);
+});
+
+test('sắp xếp cao→thấp và thấp→cao; ô trống luôn cuối; ổn định khi bằng nhau', () => {
+  const d = [dg(1, { D: '10' }), dg(2, { D: null }), dg(3, { D: '30' }), dg(4, { D: '10' }), dg(5, { D: '20' })];
+  assert.deepEqual(sapXepCot(d, 'D', 'giam').map((x) => x.so), [3, 5, 1, 4, 2]);
+  assert.deepEqual(sapXepCot(d, 'D', 'tang').map((x) => x.so), [1, 4, 5, 3, 2]);
+  assert.deepEqual(d.map((x) => x.so), [1, 2, 3, 4, 5], 'không làm đổi mảng gốc');
+});
+
+test('tổng cột bỏ ô trống; ước tính số người = tổng giờ / 1904', () => {
+  const d = [dg(1, { G: '952' }), dg(2, { G: 952 }), dg(3, { G: null }), dg(4, { G: 'abc' })];
+  assert.equal(tongCot(d, 'G'), 1904);
+  assert.equal(GIO_MOT_NGUOI_NAM, 1904);
+  assert.equal(gioSangNguoi(1904), 1);
+  assert.equal(gioSangNguoi(952), 0.5);
+  assert.equal(gioSangNguoi(0), 0);
+});
+
+test('lọc năm: liệt kê năm tăng dần, chọn năm thì chỉ giữ dòng năm đó, null là tất cả', () => {
+  const d = [dg(1, { B: 2028, C: '2' }), dg(2, { B: '2027', C: '1' }), dg(3, { B: 2027, C: '3' }), dg(4, { B: null, C: '9' })];
+  assert.deepEqual(cacNam(d, 'B'), [2027, 2028]);
+  assert.deepEqual(locNam(d, 'B', 2027).map((x) => x.so), [2, 3]);
+  assert.equal(locNam(d, 'B', null).length, 4);
+  assert.equal(tongCot(locNam(d, 'B', 2027), 'C'), 4, 'tổng theo bộ lọc năm');
+});
+
+test('cấu hình thẩm định: B1 sắp xếp/lọc cột D và ước tính theo cột G; C3 có tổng; D2 có tổng không cộng năm và lọc năm', () => {
+  assert.equal(CAU_HINH_BIEU.b1.sapXepLoc.cot, 'D');
+  assert.equal(CAU_HINH_BIEU.b1.soNguoi.cotGio, 'G');
+  assert.ok(CAU_HINH_BIEU.c3.tong);
+  assert.deepEqual(CAU_HINH_BIEU.d2.tong.loaiTru, ['B']);
+  assert.equal(CAU_HINH_BIEU.d2.locNam.cot, 'B');
+});

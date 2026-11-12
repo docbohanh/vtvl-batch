@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api, loiThanhChuoi } from '../api';
 import { dinhDangCapNhat } from '../tongQuan';
 import { locHoSo, NHAN_CHE_DO, type CheDoLoc } from '../quanTri';
-import type { DanhSachQt, HoSoQt } from '../types';
+import type { DanhSachQt, DonVi, HoSoQt } from '../types';
 import { HoSoQuanTri } from './HoSoQuanTri';
 import { IcCanhBao, IcLamMoi, IcTim } from './Icons';
 
@@ -11,10 +11,14 @@ const CAC_CHE_DO = Object.keys(NHAN_CHE_DO) as CheDoLoc[];
 
 export interface QuanTriPageProps {
   daNapLo: boolean;
+  /** Tìm đơn vị trong lô theo các tên đăng nhập của hồ sơ. */
+  timDonVi: (taiKhoan: readonly string[]) => DonVi | undefined;
+  /** Mở thẻ đơn vị (trong hộp thoại) theo tên đăng nhập trong lô. */
+  onQuanTri: (username: string) => void;
 }
 
 /** Trang quản trị (chỉ đọc): danh sách hồ sơ của kỳ hiện tại quét một lần từ cổng và lưu cache, bấm "Cập nhật" để quét lại; chọn một hồ sơ để xem từng biểu. */
-export function QuanTriPage({ daNapLo }: QuanTriPageProps) {
+export function QuanTriPage({ daNapLo, timDonVi, onQuanTri }: QuanTriPageProps) {
   const [ds, setDs] = useState<DanhSachQt | null>(null);
   const [dangQuet, setDangQuet] = useState(false);
   const [loi, setLoi] = useState<string | null>(null);
@@ -85,7 +89,7 @@ export function QuanTriPage({ daNapLo }: QuanTriPageProps) {
         </aside>
 
         <div className="qt__chi-tiet">
-          {hoSoChon ? <HoSoQuanTri key={hoSoChon.id} hoSo={hoSoChon} /> : (
+          {hoSoChon ? <HoSoQuanTri key={hoSoChon.id} hoSo={hoSoChon} donVi={timDonVi(hoSoChon.taiKhoan)} onQuanTri={onQuanTri} /> : (
             <div className="rong qt__rong">
               <h2>Chọn một hồ sơ để xem các biểu</h2>
               <p>Mỗi biểu là một tab. B1, C3 và D2 đứng đầu để thẩm định.</p>

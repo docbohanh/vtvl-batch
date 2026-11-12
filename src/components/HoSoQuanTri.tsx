@@ -2,20 +2,23 @@ import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from 're
 import { api, loiThanhChuoi } from '../api';
 import { dinhDangCapNhat } from '../tongQuan';
 import { KHOA_UU_TIEN, nhanBieu, sapTab } from '../quanTri';
-import type { DuLieuBieuQt, HoSoQt, TomTatBieuQt } from '../types';
+import type { DonVi, DuLieuBieuQt, HoSoQt, TomTatBieuQt } from '../types';
 import { BangBieu } from './BangBieu';
-import { IcCanhBao, IcLamMoi } from './Icons';
+import { IcCanhBao, IcLamMoi, IcNguoi } from './Icons';
 
 const NHAN_TRANG_THAI: Record<string, string> = { DRAFT: 'Đang kê khai', SUBMITTED: 'Đã nộp', RETURNED: 'Bị trả lại', APPROVED: 'Đã duyệt' };
 
 export interface HoSoQuanTriProps {
   hoSo: HoSoQt;
+  /** Đơn vị tương ứng trong lô (có thì mở được thẻ đơn vị). */
+  donVi: DonVi | undefined;
+  onQuanTri: (username: string) => void;
 }
 
 type TaiBieu = { loai: 'dang_tai' } | { loai: 'loi'; thongBao: string } | { loai: 'xong'; du: DuLieuBieuQt };
 
 /** Chi tiết một hồ sơ: đầu trang tóm tắt và mỗi biểu một tab. B1, C3, D2 đứng đầu và nổi bật để thẩm định. Chỉ đọc. */
-export function HoSoQuanTri({ hoSo }: HoSoQuanTriProps) {
+export function HoSoQuanTri({ hoSo, donVi, onQuanTri }: HoSoQuanTriProps) {
   const [bieu, setBieu] = useState<TomTatBieuQt[] | null>(null);
   const [loiBieu, setLoiBieu] = useState<string | null>(null);
   const [tab, setTab] = useState<string>(KHOA_UU_TIEN[0]);
@@ -81,9 +84,15 @@ export function HoSoQuanTri({ hoSo }: HoSoQuanTriProps) {
           </p>
           <p className="hsqt__phu">Tài khoản: {hoSo.taiKhoan.length ? hoSo.taiKhoan.map((t) => <code key={t}>{t}</code>) : <i>chưa có tài khoản gắn với đơn vị này</i>}</p>
         </div>
-        <button type="button" className="nut" onClick={() => { if (bieuChon) void taiBieu(bieuChon.khoa); }} disabled={!bieuChon || hienTai?.loai === 'dang_tai'} title="Đọc lại biểu đang xem từ cổng">
-          <IcLamMoi /> Tải lại biểu
-        </button>
+        <div className="hsqt__nut">
+          <button type="button" className="nut" onClick={() => { if (bieuChon) void taiBieu(bieuChon.khoa); }} disabled={!bieuChon || hienTai?.loai === 'dang_tai'} title="Đọc lại biểu đang xem từ cổng">
+            <IcLamMoi /> Tải lại biểu
+          </button>
+          <button type="button" className="nut nut--chinh" onClick={() => { if (donVi) onQuanTri(donVi.username); }} disabled={!donVi}
+            title={donVi ? 'Mở thẻ đơn vị: đăng nhập, Excel, chuẩn bị, gửi…' : 'Đơn vị này chưa có trong lô đang nạp, nên chưa mở được thẻ đơn vị'}>
+            <IcNguoi /> Quản trị
+          </button>
+        </div>
       </header>
 
       {loiBieu && <p className="thong-bao thong-bao--loi" role="alert"><IcCanhBao />{loiBieu}</p>}

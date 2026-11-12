@@ -1,23 +1,57 @@
-import { memo, useDeferredValue, useMemo, useState } from 'react';
-import { hienGiaTri, locDong, mauO } from '../quanTri';
-import type { DuLieuBieuQt } from '../types';
+import { memo, useDeferredValue, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { CAU_HINH_BIEU, cacNam, dinhDangTong, GIO_MOT_NGUOI_NAM, gioSangNguoi, hienGiaTri, locDong, locNam, locTuMuc, mauO, sapXepCot, soTuO, tongCot, type HuongSapXep } from '../quanTri';
+import type { CotQt, DuLieuBieuQt } from '../types';
 import { IcCanhBao, IcTim } from './Icons';
 
 const BUOC_HIEN = 200;
+const KIEU_SO = ['DECIMAL', 'INTEGER'];
 
 export interface BangBieuProps {
   du: DuLieuBieuQt;
 }
 
-/** Bảng dữ liệu một biểu để thẩm định: cột theo khung biểu, ô tính tự động tô nền nhạt, dòng cổng báo lỗi/cảnh báo nổi bật và hiện nội dung lỗi ngay dưới dòng. */
+/** Bảng dữ liệu một biểu để thẩm định. Cột theo khung biểu, ô tính tự động tô nền nhạt, dòng cổng báo lỗi nổi bật.
+ *  Công cụ riêng từng biểu (xem `CAU_HINH_BIEU`): B1 sắp xếp và lọc ≥ cột D, ước tính số người; C3, D2 có dòng tổng trên cùng; D2 lọc theo năm. */
 export const BangBieu = memo(function BangBieu({ du }: BangBieuProps) {
+  const ch = CAU_HINH_BIEU[du.bieu.khoa] ?? {};
+  const cot = du.bieu.cot;
   const [tim, setTim] = useState('');
   const [chiLoi, setChiLoi] = useState(false);
   const [soHien, setSoHien] = useState(BUOC_HIEN);
+  const [huong, setHuong] = useState<HuongSapXep | null>(null);
+  const [nguong, setNguong] = useState('');
+  const [nam, setNam] = useState<number | null>(null);
   const timTre = useDeferredValue(tim);
-  const dong = useMemo(() => locDong(du.dong, timTre, chiLoi), [du.dong, timTre, chiLoi]);
+  const nguongSo = nguong.trim() === '' ? null : soTuO(nguong);
+
+  const cacNamCo = useMemo(() => (ch.locNam ? cacNam(du.dong, ch.locNam.cot) : []), [du.dong, ch.locNam]);
+  const dong = useMemo(() => {
+    let r = locDong(du.dong, timTre, chiLoi);
+    if (ch.sapXepLoc && nguongSo !== null) r = locTuMuc(r, ch.sapXepLoc.cot, nguongSo);
+    if (ch.locNam) r = locNam(r, ch.locNam.cot, nam);
+    if (ch.sapXepLoc && huong) r = sapXepCot(r, ch.sapXepLoc.cot, huong);
+    return r;
+  }, [du.dong, timTre, chiLoi, ch.sapXepLoc, ch.locNam, nguongSo, nam, huong]);
   const soDongCoVanDe = useMemo(() => du.dong.filter((d) => d.loi.length > 0 || d.trangThai !== 'OK').length, [du.dong]);
-  const cot = du.bieu.cot;
+  const tongGio = ch.soNguoi ? tongCot(dong, ch.soNguoi.cotGio) : 0;
+  const coTong = (c: CotQt) => !!ch.tong && KIEU_SO.includes(c.kieu) && !ch.tong.loaiTru.includes(c.chu);
+
+  // dòng tổng dính ngay dưới hàng tiêu đề: cần chiều cao thật của hàng tiêu đề (tiêu đề dài có thể xuống dòng)
+  const hangDau = useRef<HTMLTableRowElement>(null);
+  const [caoDau, setCaoDau] = useState(0);
+  useLayoutEffect(() => {
+    const el = hangDau.current;
+    if (!el) return undefined;
+    const do_ = () => setCaoDau(el.offsetHeight);
+    do_();
+    const ro = new ResizeObserver(do_);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [cot, dong.length === 0]);
+
+  const doiHuong = () => { setHuong((h) => (h === null ? 'giam' : h === 'giam' ? 'tang' : null)); setSoHien(BUOC_HIEN); };
+  const sx = ch.sapXepLoc;
+  const nhanCotDau = cot.find((c) => !KIEU_SO.includes(c.kieu))?.chu;
 
   return (
     <div className="bb">
@@ -36,26 +70,64 @@ export const BangBieu = memo(function BangBieu({ du }: BangBieuProps) {
           <input type="checkbox" checked={chiLoi} onChange={(e) => { setChiLoi(e.target.checked); setSoHien(BUOC_HIEN); }} />
           Chỉ dòng có vấn đề <span className="bb__phu">({soDongCoVanDe})</span>
         </label>
+        {sx && (
+          <label className="bb__loc-so">
+            {sx.nhan} ≥
+            <input type="number" inputMode="decimal" min="0" step="any" value={nguong} onChange={(e) => { setNguong(e.target.value); setSoHien(BUOC_HIEN); }} placeholder="vd 1000" aria-label={`Chỉ hiện dòng có ${sx.nhan} lớn hơn hoặc bằng`} />
+            {nguong !== '' && <button type="button" className="bb__xoa" onClick={() => setNguong('')} aria-label="Bỏ lọc">×</button>}
+          </label>
+        )}
+        {ch.locNam && cacNamCo.length > 0 && (
+          <div className="bb__nam" role="group" aria-label="Lọc theo năm">
+            <span className="bb__phu">Năm</span>
+            <button type="button" className={`loc-nut${nam === null ? ' loc-nut--chon' : ''}`} aria-pressed={nam === null} onClick={() => { setNam(null); setSoHien(BUOC_HIEN); }}>Tất cả</button>
+            {cacNamCo.map((n) => (
+              <button key={n} type="button" className={`loc-nut${nam === n ? ' loc-nut--chon' : ''}`} aria-pressed={nam === n} onClick={() => { setNam(n); setSoHien(BUOC_HIEN); }}>{n}</button>
+            ))}
+          </div>
+        )}
+        {ch.soNguoi && (
+          <p className="bb__uoc-tinh" role="status" title={`Ước tính = tổng giờ (cột ${ch.soNguoi.cotGio}) ÷ ${GIO_MOT_NGUOI_NAM}, tính trên các dòng đang hiện`}>
+            Tổng giờ <b>{dinhDangTong(tongGio)}</b> ÷ {GIO_MOT_NGUOI_NAM.toLocaleString('vi-VN')} ≈ <b className="bb__nguoi">{dinhDangTong(gioSangNguoi(tongGio))}</b> người
+          </p>
+        )}
       </div>
 
       {du.biCat && <p className="thong-bao thong-bao--loi" role="status"><IcCanhBao />Biểu có {du.tong} dòng, chỉ tải {du.dong.length} dòng đầu.</p>}
 
       {du.tong === 0 ? (
         <p className="bb__rong">Biểu chưa có dòng nào.</p>
-      ) : dong.length === 0 ? (
-        <p className="bb__rong">Không có dòng nào khớp bộ lọc.</p>
       ) : (
         <div className="bb__cuon" tabIndex={0} role="region" aria-label={`Dữ liệu biểu ${du.bieu.ma}`}>
           <table className="bb__bang">
             <thead>
-              <tr>
+              <tr ref={hangDau}>
                 <th scope="col" className="bb__stt">#</th>
-                {cot.map((c) => (
-                  <th key={c.chu} scope="col" className={c.loai === 'INPUT' ? '' : 'bb__tu-dong'} title={`${c.chu} · ${c.loai === 'INPUT' ? 'cột nhập' : 'cột tự động'}`}>
-                    <span className="bb__chu">{c.chu}</span>{c.tieuDe}
-                  </th>
-                ))}
+                {cot.map((c) => {
+                  const sapXep = sx?.cot === c.chu;
+                  return (
+                    <th key={c.chu} scope="col" className={c.loai === 'INPUT' ? '' : 'bb__tu-dong'} title={`${c.chu} · ${c.loai === 'INPUT' ? 'cột nhập' : 'cột tự động'}`}
+                      aria-sort={sapXep ? (huong === 'giam' ? 'descending' : huong === 'tang' ? 'ascending' : 'none') : undefined}>
+                      <span className="bb__chu">{c.chu}</span>{c.tieuDe}
+                      {sapXep && (
+                        <button type="button" className={`bb__sx${huong ? ' bb__sx--bat' : ''}`} onClick={doiHuong} aria-label={`Sắp xếp theo ${c.tieuDe}: ${huong === 'giam' ? 'cao đến thấp' : huong === 'tang' ? 'thấp đến cao' : 'chưa sắp xếp'}. Bấm để đổi`} title="Bấm để đổi: cao → thấp → thấp → cao → bỏ sắp xếp">
+                          {huong === 'giam' ? '↓ Cao→thấp' : huong === 'tang' ? '↑ Thấp→cao' : '↕ Sắp xếp'}
+                        </button>
+                      )}
+                    </th>
+                  );
+                })}
               </tr>
+              {ch.tong && (
+                <tr className="bb__tong" style={{ ['--bb-cao-dau' as string]: `${caoDau}px` }}>
+                  <th scope="row" className="bb__stt" title="Dòng tổng">Σ</th>
+                  {cot.map((c) => (
+                    <td key={c.chu} className={coTong(c) ? 'bb__so-tong' : ''}>
+                      {coTong(c) ? dinhDangTong(tongCot(dong, c.chu)) : c.chu === nhanCotDau ? <span>Tổng · {dong.length} dòng{nam !== null ? ` · năm ${nam}` : ''}</span> : ''}
+                    </td>
+                  ))}
+                </tr>
+              )}
             </thead>
             <tbody>
               {dong.slice(0, soHien).map((d) => {
@@ -67,12 +139,13 @@ export const BangBieu = memo(function BangBieu({ du }: BangBieuProps) {
               })}
             </tbody>
           </table>
+          {dong.length === 0 && <p className="bb__rong">Không có dòng nào khớp bộ lọc.</p>}
         </div>
       )}
 
       {dong.length > soHien && (
         <div className="bb__them">
-          <span className="bb__phu">Đang hiện {soHien}/{dong.length} dòng</span>
+          <span className="bb__phu">Đang hiện {soHien}/{dong.length} dòng (dòng tổng tính trên cả {dong.length} dòng)</span>
           <button type="button" className="nut" onClick={() => setSoHien((n) => n + BUOC_HIEN)}>Hiện thêm {Math.min(BUOC_HIEN, dong.length - soHien)} dòng</button>
           <button type="button" className="nut" onClick={() => setSoHien(dong.length)}>Hiện tất cả</button>
         </div>
