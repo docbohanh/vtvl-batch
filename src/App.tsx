@@ -6,7 +6,9 @@ import { ChonCauHinh, chonTepCauHinh } from './components/ChonCauHinh';
 import { IcGui, IcKetNoi, IcKiemTra, IcMoTatCa, IcNguoi, IcThem, IcThuMuc, IcThuTatCa, IcTim } from './components/Icons';
 import { docLichSu, ghiLichSu, themLichSu, xoaMucLichSu, type MucLichSu } from './lichSuLo';
 import { ThemDonViDialog } from './components/ThemDonViDialog';
+import { QuanTriPage } from './components/QuanTriPage';
 import { TaoTaiKhoanDialog } from './components/TaoTaiKhoanDialog';
+import { boDau } from './quanTri';
 import { DIEU_KIEN, NHAN_LOC, type LocTrangThai } from './loc';
 import { Tong } from './components/Tong';
 import { UnitCard } from './components/UnitCard';
@@ -15,8 +17,6 @@ import './styles.css';
 
 const CHU_KY_MS = 1000;
 
-/** Chuẩn hóa để tìm kiếm: bỏ dấu tiếng Việt, đ → d, chữ thường. */
-const boDau = (t: string) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/gi, 'd').toLowerCase();
 const KHOA_DUONG_DAN = 'vtvl-batch.cau-hinh';
 
 /** Nhớ tệp cấu hình đã chọn lần trước (chỉ tiện lợi; bộ nhớ trình duyệt có thể không dùng được). */
@@ -28,7 +28,9 @@ function nhoDuongDan(p: string): void {
 }
 
 export default function App() {
-  const [daMo, setDaMo] = useState(false); // đã qua cổng mật khẩu khởi động
+  const [daMo, setDaMo] = useState(true); // NHÁNH ADMIN: tạm bỏ cổng mật khẩu khởi động (đặt false để bật lại; Rust: TAM_BO_MAT_KHAU_KHOI_DONG)
+  const [trang, setTrang] = useState<'lo' | 'quan_tri'>('lo');
+  const [daVaoQuanTri, setDaVaoQuanTri] = useState(false); // chỉ quét cổng khi lần đầu mở trang Quản trị; sau đó giữ nguyên trạng thái khi chuyển qua lại
   const [duongDan, setDuongDan] = useState(docDuongDanCu);
   const [daNapLo, setDaNapLo] = useState(false); // đã nạp được một lô (kể cả lô trống chưa có đơn vị)
   const [nguoi, setNguoi] = useState('');
@@ -141,14 +143,18 @@ export default function App() {
               <p>Đồng bộ nhiều đơn vị · Gửi hồ sơ hàng loạt</p>
             </div>
           </div>
-          {don.length > 0 && <Tong don={don} loc={loc} onLoc={setLoc} />}
+          <div className="chuyen-trang" role="group" aria-label="Chọn trang">
+            <button type="button" aria-pressed={trang === 'lo'} onClick={() => setTrang('lo')}>Lô đơn vị</button>
+            <button type="button" aria-pressed={trang === 'quan_tri'} onClick={() => { setTrang('quan_tri'); setDaVaoQuanTri(true); }}>Quản trị</button>
+          </div>
+          {trang === 'lo' && don.length > 0 && <Tong don={don} loc={loc} onLoc={setLoc} />}
           <label className="nguoi">
             <span className="nhan-truong"><IcNguoi /> Người vận hành</span>
             <input value={nguoi} onChange={(e) => { setNguoi(e.target.value); void api.datNguoi(e.target.value); }} placeholder="Họ và tên người xác nhận gửi" autoComplete="name" />
           </label>
         </header>
 
-        <section className="bang-dieu-khien" aria-label="Điều khiển lô">
+        {trang === 'lo' && <section className="bang-dieu-khien" aria-label="Điều khiển lô">
           <ChonCauHinh duongDan={duongDan} dangBan={bao} onChon={(p) => { setDuongDan(p); void napLo(p); }} onNapLai={() => { void napLo(duongDan); }} lichSu={lichSu} onChonLichSu={(p) => { setDuongDan(p); void napLo(p); }} onXoaLichSu={(p) => capNhatLichSu(xoaMucLichSu(lichSu, p))} onXoaHetLichSu={() => capNhatLichSu([])} />
           {don.length > 0 && (
             <label className="tim-kiem">
@@ -178,9 +184,11 @@ export default function App() {
               </button>
             </div>
           </div>
-        </section>
+        </section>}
       </div>
 
+      {daVaoQuanTri && <div hidden={trang !== 'quan_tri'}><QuanTriPage daNapLo={daNapLo} /></div>}
+      {trang === 'lo' && <>
       {thongBao && <p className="thong-bao thong-bao--loi" role="alert">{thongBao}</p>}
 
       {!daNapLo ? (
@@ -228,6 +236,7 @@ export default function App() {
           ))}
         </main>
       )}
+      </>}
 
       <TaoTaiKhoanDialog open={moTaoTk} daNapLo={daNapLo} onClose={() => setMoTaoTk(false)} onXong={setDon} />
       <ThemDonViDialog open={moThem} daNapLo={daNapLo} onClose={() => setMoThem(false)} onXong={setDon} onCanhBao={setThongBao} />

@@ -12,6 +12,7 @@ mod kiem_tra_local;
 mod lo;
 mod may_chu;
 mod portal;
+mod quan_tri;
 mod tao_tai_khoan;
 #[cfg(test)]
 mod thu_gia;
@@ -46,7 +47,9 @@ struct Lo {
 /// Cookie từng tài khoản (khóa là username chữ thường). Chỉ giữ trong bộ nhớ.
 type KhoCookie = Arc<Mutex<HashMap<String, String>>>;
 
-#[derive(Default)]
+/// NHÁNH ADMIN: tạm bỏ cổng mật khẩu khởi động (đặt `false` để bật lại).
+const TAM_BO_MAT_KHAU_KHOI_DONG: bool = true;
+
 pub struct AppState {
     lo: Mutex<Option<Arc<Lo>>>,
     cookies: KhoCookie,
@@ -55,13 +58,29 @@ pub struct AppState {
     /// Cổng mật khẩu khởi động: mã băm đã nạp, số lần sai, đã mở khóa chưa.
     khoa_khoi_dong: Mutex<KhoaKhoiDong>,
     dang_chay: Arc<Mutex<HashSet<String>>>,
+    /// Phiên quản trị dùng lại giữa các lần xem (đăng nhập một lần).
+    phien_quan_tri: tokio::sync::Mutex<Option<Session>>,
 }
 
-#[derive(Default)]
 struct KhoaKhoiDong {
     hash: Option<String>,
     da_sai: u32,
     da_mo: bool,
+}
+
+impl Default for KhoaKhoiDong {
+    fn default() -> Self {
+        Self { hash: None, da_sai: 0, da_mo: TAM_BO_MAT_KHAU_KHOI_DONG }
+    }
+}
+
+impl Default for AppState {
+    fn default() -> Self {
+        Self {
+            lo: Mutex::default(), cookies: KhoCookie::default(), nguoi: Mutex::default(), cau_hinh: Mutex::default(),
+            khoa_khoi_dong: Mutex::default(), dang_chay: Arc::default(), phien_quan_tri: tokio::sync::Mutex::new(None),
+        }
+    }
 }
 
 /// Mọi lệnh dùng dữ liệu lô đều phải qua cổng mật khẩu trước.
@@ -1242,7 +1261,7 @@ fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .manage(AppState::default())
-        .invoke_handler(tauri::generate_handler![khoi_dong_khoa, khoi_tao_lo_trong, kiem_tra_ma, kiem_tra_tep, lay_ket_qua_kiem_tra, lo_nap, them_don_vi, sua_don_vi, xoa_don_vi, lay_bearer, lay_nguoi, chon_excel, chon_ho_so, xoa_dem, tong_quan, gui_buoc_8, xoa_du_lieu, dang_nhap, dat_cookie, dat_nguoi, lay_trang_thai, kiem_tra_ket_noi_tat_ca, tq_lay_cay, tq_tao, tq_xuat_excel, chuan_bi, chuan_bi_tat_ca, gui, gui_lai, gui_tat_ca])
+        .invoke_handler(tauri::generate_handler![khoi_dong_khoa, khoi_tao_lo_trong, kiem_tra_ma, kiem_tra_tep, lay_ket_qua_kiem_tra, lo_nap, them_don_vi, sua_don_vi, xoa_don_vi, lay_bearer, lay_nguoi, chon_excel, chon_ho_so, xoa_dem, tong_quan, gui_buoc_8, xoa_du_lieu, dang_nhap, dat_cookie, dat_nguoi, lay_trang_thai, kiem_tra_ket_noi_tat_ca, tq_lay_cay, tq_tao, quan_tri::qt_danh_sach, quan_tri::qt_chi_tiet, quan_tri::qt_bieu, tq_xuat_excel, chuan_bi, chuan_bi_tat_ca, gui, gui_lai, gui_tat_ca])
         .run(tauri::generate_context!())
         .expect("error");
 }

@@ -92,3 +92,17 @@ export interface DongBaoCao { ten: string; taiKhoan: string; matKhau: string }
 export interface KpiTongQuan { khoa: string; nhan: string; giaTri: number | string | null; donVi: string; chuaKiemChung: number | string | null }
 export interface BuocTongQuan { buoc: number; tieuDe: string; xong: number; dangLam: number; chuaBatDau: number }
 export interface TongQuan { chao: string; donVi: string; ky: string; kpis: KpiTongQuan[]; buoc: BuocTongQuan[]; capNhat: string }
+
+/** Quản trị: tài khoản và hồ sơ của kỳ hiện tại quét từ cổng (lưu cache cục bộ). */
+export interface KyQt { id: string; ma: string; ten: string; tuNgay: string; denNgay: string; trangThai: string }
+export interface TaiKhoanQt { tenDangNhap: string; hoTen: string; orgId: string; trangThai: string; dangNhapCuoi: string }
+export interface HoSoQt {
+  id: string; orgId: string; ma: string; ten: string; cap: string; trangThai: string; tienDo: number; capNhat: string;
+  dongDat: number; dongChuaDat: number; canhBao: number; taiKhoan: string[];
+}
+export interface CotQt { chu: string; tieuDe: string; loai: string; kieu: string }
+export interface BieuQt { khoa: string; ma: string; tieuDe: string; buoc: number; cot: CotQt[] }
+export interface DanhSachQt { quetLuc: string; ky: KyQt; taiKhoan: TaiKhoanQt[]; hoSo: HoSoQt[]; bieu: BieuQt[] }
+export interface TomTatBieuQt { khoa: string; ma: string; tieuDe: string; buoc: number; soDong: number; trangThai: string; dongChuaDat: number }
+export interface DongQt { so: number; duLieu: Record<string, unknown>; trangThai: string; loi: string[]; capNhat: string }
+export interface DuLieuBieuQt { bieu: BieuQt; trangThai: string; tong: number; dongDat: number; dongChuaDat: number; canhBao: number; dong: DongQt[]; biCat: boolean }
