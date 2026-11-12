@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, loiThanhChuoi } from '../api';
+import { laManHinhHep, useNhoBoolean } from '../boNho';
 import { dinhDangCapNhat } from '../tongQuan';
 import { dungHangCay, locHoSo, NHAN_CHE_DO, NUT_CHUA_XEP, type CheDoLoc } from '../quanTri';
 import type { DanhSachQt, HoSoQt, KyQt } from '../types';
 import { CayHoSo } from './CayHoSo';
 import { HoSoQuanTri } from './HoSoQuanTri';
-import { IcCanhBao, IcLamMoi, IcTim } from './Icons';
+import { IcCanhBao, IcGonTrai, IcLamMoi, IcTim } from './Icons';
 
 /** Phải khớp `KHONG_CO_KY_MO` ở `quan_tri.rs`. */
 const KHONG_CO_KY_MO = 'Cổng không có kỳ kê khai nào đang mở';
@@ -28,6 +29,7 @@ export function QuanTriPage({ daNapLo, lanDoiTaiKhoan, onQuanTri }: QuanTriPageP
   const [tim, setTim] = useState('');
   const [che, setChe] = useState<CheDoLoc>('tat_ca');
   const [chon, setChon] = useState<string | null>(null);
+  const [gonCay, setGonCay] = useNhoBoolean('vtvl-batch.gon-cay', laManHinhHep); // thu cây đơn vị thành một cột hẹp
   const [moRong, setMoRong] = useState<ReadonlySet<string>>(new Set()); // nhánh đang mở trong cây
 
   const [cacKy, setCacKy] = useState<KyQt[] | null>(null); // có giá trị khi không tự chọn được kỳ đang mở: người dùng chọn tay
@@ -132,8 +134,12 @@ export function QuanTriPage({ daNapLo, lanDoiTaiKhoan, onQuanTri }: QuanTriPageP
       </div>
       {loi && <p className="thong-bao thong-bao--loi" role="alert"><IcCanhBao />{loi}</p>}
 
-      <div className="qt__bo-cuc">
-        <aside className="qt__ds" aria-label="Danh sách hồ sơ">
+      <div className={`qt__bo-cuc${gonCay ? ' qt__bo-cuc--gon-cay' : ''}`}>
+        <aside className={`qt__ds${gonCay ? ' qt__ds--gon' : ''}`} aria-label="Danh sách hồ sơ">
+          <button type="button" className="nut nut--nho qt__ds-gon" aria-expanded={!gonCay} onClick={() => setGonCay((g) => !g)}
+            title={gonCay ? 'Mở rộng cây đơn vị' : 'Thu gọn cây đơn vị để xem biểu rộng hơn'}>
+            <IcGonTrai /> <span>{gonCay ? 'Cây đơn vị' : 'Thu gọn cây'}</span>
+          </button>
           <label className="tim-kiem">
             <IcTim aria-hidden="true" />
             <input type="search" value={tim} onChange={(e) => setTim(e.target.value)} placeholder="Tìm đơn vị, mã, tài khoản…" aria-label="Tìm hồ sơ" autoComplete="off" spellCheck={false} disabled={!ds} />
@@ -150,7 +156,7 @@ export function QuanTriPage({ daNapLo, lanDoiTaiKhoan, onQuanTri }: QuanTriPageP
           </div>
           <div className="qt__cuon-cay">
             {ds && cacNut.length === 0 && <p className="thong-bao thong-bao--chu-y"><IcCanhBao />Bản lưu cũ chưa có cây đơn vị. Bấm “Cập nhật” để dựng cây.</p>}
-            <CayHoSo hang={hangCay} chon={chon} onChon={setChon} onDoi={doiNhanh} />
+            <CayHoSo hang={hangCay} chon={chon} onChon={(id) => { setChon(id); if (laManHinhHep()) setGonCay(true); }} onDoi={doiNhanh} />
             {ds && hienThi.length === 0 && <p className="qt__phu qt__them">Không có hồ sơ nào khớp.</p>}
           </div>
         </aside>

@@ -19,6 +19,9 @@ export const IcCanhBao = (p: SVGProps<SVGSVGElement>) => <Icon {...p}><path d="m
 export const IcChua = (p: SVGProps<SVGSVGElement>) => <Icon {...p}><circle cx="12" cy="12" r="10" /><path d="M12 8v4" /><path d="M12 16h.01" /></Icon>;
 export const IcKhoa = (p: SVGProps<SVGSVGElement>) => <Icon {...p}><circle cx="7.5" cy="15.5" r="5.5" /><path d="m21 2-9.6 9.6" /><path d="m15.5 7.5 3 3L22 7l-3-3" /></Icon>;
 export const IcTaiXuong = (p: SVGProps<SVGSVGElement>) => <Icon {...p}><path d="M12 3v12" /><path d="m7 10 5 5 5-5" /><path d="M5 21h14" /></Icon>;
+export const IcGonTrai = (p: SVGProps<SVGSVGElement>) => <Icon {...p}><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M9 4v16" /></Icon>;
+export const IcLenXuong = (p: SVGProps<SVGSVGElement>) => <Icon {...p}><path d="m6 9 6 6 6-6" /></Icon>;
+export const IcLenTren = (p: SVGProps<SVGSVGElement>) => <Icon {...p}><path d="m18 15-6-6-6 6" /></Icon>;
 export const IcLamMoi = (p: SVGProps<SVGSVGElement>) => <Icon {...p}><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" /><path d="M21 3v5h-5" /><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" /><path d="M8 16H3v5" /></Icon>;
 export const IcLoa = (p: SVGProps<SVGSVGElement>) => <Icon {...p}><path d="M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6z" /><path d="m9 12 2 2 4-4" /></Icon>;
 export const IcNguoi = (p: SVGProps<SVGSVGElement>) => <Icon {...p}><circle cx="12" cy="8" r="4" /><path d="M4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1" /></Icon>;

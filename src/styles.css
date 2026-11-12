@@ -480,7 +480,7 @@ dialog .phu { color: var(--chu-phu); font-size: 0.84rem; }
 .qt__tom-tat { color: var(--chu-phu); font-size: 0.86rem; }
 .qt__tom-tat b { color: var(--chu); }
 .qt__bo-cuc { flex: 1; min-height: 0; display: grid; grid-template-columns: clamp(300px, 27vw, 460px) minmax(0, 1fr); gap: 16px; align-items: stretch; }
-.qt__ds { min-height: 0; display: grid; gap: 10px; padding: 12px; grid-template-rows: auto auto auto minmax(0, 1fr); background: var(--be-mat); border: 1px solid var(--vien); border-radius: var(--ban-kinh); box-shadow: var(--bong); }
+.qt__ds { min-height: 0; display: grid; gap: 10px; padding: 12px; grid-template-rows: auto auto auto auto minmax(0, 1fr); background: var(--be-mat); border: 1px solid var(--vien); border-radius: var(--ban-kinh); box-shadow: var(--bong); }
 .qt__ds .tim-kiem { max-width: none; }
 .qt__loc { display: flex; flex-wrap: wrap; gap: 6px; }
 .loc-nut { height: 28px; padding: 0 10px; font: 500 0.76rem/1 var(--font); color: var(--chu-phu); background: var(--be-mat-2); border: 1px solid var(--vien); border-radius: 999px; cursor: pointer; transition: background-color var(--nhanh), border-color var(--nhanh), color var(--nhanh); }
@@ -675,3 +675,28 @@ button.cay__mui:hover { color: var(--chinh); background: var(--chinh-nen); }
 .ky-ds__nhan { padding: 2px 9px; font-size: 0.72rem; font-weight: 600; border-radius: 999px; white-space: nowrap; background: var(--be-mat-2); color: var(--chu-phu); border: 1px solid var(--vien); }
 .ky-ds__nhan--mo { background: var(--tot-nen); color: var(--tot); border-color: transparent; }
 @media (prefers-reduced-motion: reduce) { .ky-ds__muc { transition: none; } }
+
+/* ---- thu gọn / mở rộng cho màn hình nhỏ (laptop 1024×768) ---- */
+.nut--nho { padding: 4px 10px; font-size: 0.82rem; }
+.qt__ds-gon { justify-self: start; }
+.qt__bo-cuc--gon-cay { grid-template-columns: 52px minmax(0, 1fr); }
+.qt__ds--gon { grid-template-rows: auto; align-content: start; justify-items: center; padding: 8px 6px; }
+.qt__ds--gon > *:not(.qt__ds-gon) { display: none; }
+.qt__ds--gon .qt__ds-gon { height: auto; flex-direction: column; justify-self: center; padding: 10px 6px; min-height: 44px; }
+.qt__ds--gon .qt__ds-gon span { writing-mode: vertical-rl; margin-top: 6px; }
+.hsqt__dau--gon .hsqt__phu + .hsqt__phu, .hsqt__dau--gon .ss { display: none; }
+.hsqt__dau--gon { padding-block: 8px; }
+@media (max-width: 900px) { .qt__bo-cuc--gon-cay { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); } .qt__ds--gon .qt__ds-gon span { writing-mode: horizontal-tb; margin: 0 0 0 6px; } .qt__ds--gon .qt__ds-gon { flex-direction: row; } }
+
+/* ---- thanh trên cùng gọn: một hàng, nút chữ nhỏ, nhãn nhóm chỉ còn cho trình đọc màn hình ---- */
+.thanh-tren--qt { padding: 6px 0; gap: 12px; }
+.thanh-tren--qt .thuong-hieu { gap: 10px; }
+.thanh-tren--qt .logo { height: 28px; width: auto; }
+.thanh-tren--qt h1 { font-size: 1.02rem; }
+.thanh-tren--qt .thanh-tren__phai { gap: 6px; margin-left: auto; }
+.thanh-tren--qt .tk-qt { display: block; }
+.thanh-tren--qt .tk-qt > .nhan-truong { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+.thanh-tren--qt .tk-qt__nut, .thanh-tren--qt .nut.cap-nhat { height: 30px; min-width: 0; padding: 0 10px; font-size: 0.82rem; gap: 6px; }
+.thanh-tren--qt .tk-qt__nut b { max-width: 150px; }
+.thanh-tren--qt .nut svg { width: 14px; height: 14px; }
+.thanh-tren--qt .thuong-hieu p { display: none; }

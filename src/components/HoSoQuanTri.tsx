@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { api, loiThanhChuoi } from '../api';
+import { laManHinhHep, useNhoBoolean } from '../boNho';
 import { dinhDangCapNhat } from '../tongQuan';
 import { dinhDangTong, GIO_MOT_NGUOI_NAM, KHOA_UU_TIEN, nhanBieu, NGUONG_LECH_KHOP, sapTab, soSanhNguoi } from '../quanTri';
 import type { DuLieuBieuQt, HoSoQt, TomTatBieuQt } from '../types';
 import { BangBieu } from './BangBieu';
 import { save } from '@tauri-apps/plugin-dialog';
-import { IcCanhBao, IcLamMoi, IcNguoi, IcTaiXuong } from './Icons';
+import { IcCanhBao, IcLamMoi, IcLenTren, IcLenXuong, IcNguoi, IcTaiXuong } from './Icons';
 
 const NHAN_TRANG_THAI: Record<string, string> = { DRAFT: 'Đang kê khai', SUBMITTED: 'Đã nộp', RETURNED: 'Bị trả lại', APPROVED: 'Đã duyệt' };
 
@@ -24,6 +25,7 @@ export function HoSoQuanTri({ hoSo, onQuanTri }: HoSoQuanTriProps) {
   const [tab, setTab] = useState<string>(KHOA_UU_TIEN[0]);
   const [da, setDa] = useState<Record<string, TaiBieu>>({});
   const lanTai = useRef(0);
+  const [gonDau, setGonDau] = useNhoBoolean('vtvl-batch.gon-hoso', laManHinhHep); // ẩn dòng tài khoản và dải so sánh B1 ↔ C3
   const [dangXuat, setDangXuat] = useState(false);
   const [ketQuaXuat, setKetQuaXuat] = useState<{ ok: boolean; noiDung: string } | null>(null);
 
@@ -99,7 +101,7 @@ export function HoSoQuanTri({ hoSo, onQuanTri }: HoSoQuanTriProps) {
 
   return (
     <section className="hsqt" aria-label={`Hồ sơ ${hoSo.ten}`}>
-      <header className="hsqt__dau">
+      <header className={`hsqt__dau${gonDau ? ' hsqt__dau--gon' : ''}`}>
         <div>
           <h2>{hoSo.ten}</h2>
           <p className="hsqt__phu">
@@ -108,6 +110,9 @@ export function HoSoQuanTri({ hoSo, onQuanTri }: HoSoQuanTriProps) {
           <p className="hsqt__phu">Tài khoản: {hoSo.taiKhoan.length ? hoSo.taiKhoan.map((t) => <code key={t}>{t}</code>) : <i>chưa có tài khoản gắn với đơn vị này</i>}</p>
         </div>
         <div className="hsqt__nut">
+          <button type="button" className="nut" aria-expanded={!gonDau} onClick={() => setGonDau((g) => !g)} title={gonDau ? 'Hiện tài khoản và so sánh B1 ↔ C3' : 'Ẩn tài khoản và so sánh B1 ↔ C3 để xem biểu rộng hơn'}>
+            {gonDau ? <IcLenXuong /> : <IcLenTren />} {gonDau ? 'Chi tiết' : 'Thu gọn'}
+          </button>
           <button type="button" className="nut" onClick={() => void xuatExcel()} disabled={!bieu || dangXuat} title="Đọc mọi biểu hiện tại của đơn vị từ cổng và lưu thành bộ biểu theo mẫu B30K (Excel, đủ các biểu A1, A2, B1, B2, C1, C2, C3, D1, D2 và dự báo; giữ công thức, khóa, danh sách chọn của mẫu)">
             {dangXuat ? <span className="quay" aria-hidden="true" /> : <IcTaiXuong />} {dangXuat ? 'Đang xuất…' : 'Xuất Excel'}
           </button>

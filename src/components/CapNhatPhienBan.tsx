@@ -32,15 +32,15 @@ export function CapNhatPhienBan() {
     return boc(
       <button type="button" className="nut nut--chinh cap-nhat tk-qt__nut" onClick={() => { void api.moTrangTai(kq.url).catch(() => undefined); }}
         title={`Đang dùng ${kq.hienTai}. Bấm để mở trang tải bản ${kq.moi}.${kq.ghiChu ? `\n\n${kq.ghiChu}` : ''}`}>
-        Có bản mới {kq.moi}
+        Bản mới {kq.moi}
       </button>,
     );
   }
   const hienTai = tt.loai === 'xong' ? tt.kq.hienTai : null;
-  const nhan = tt.loai === 'dang' ? 'Đang kiểm tra…' : tt.loai === 'xong' ? `Đã là bản mới nhất${hienTai ? ` (${hienTai})` : ''}` : tt.loai === 'loi' ? 'Lỗi kiểm tra' : 'Kiểm tra cập nhật';
+  const nhan = tt.loai === 'dang' ? 'Đang kiểm tra…' : tt.loai === 'xong' ? `v${hienTai ?? ''} ✓` : tt.loai === 'loi' ? 'Lỗi · thử lại' : 'Cập nhật?';
   return boc(
     <button type="button" className="nut cap-nhat tk-qt__nut" onClick={() => void kiemTra(false)} disabled={tt.loai === 'dang'}
-      title={tt.loai === 'loi' ? tt.thongBao : 'Hỏi GitHub xem có phiên bản mới của VTVL Batch không'}>
+      title={tt.loai === 'loi' ? tt.thongBao : tt.loai === 'xong' ? 'Đang dùng bản mới nhất. Bấm để kiểm tra lại' : 'Hỏi GitHub xem có phiên bản mới của VTVL Batch không'}>
       <IcLamMoi /> {nhan}
     </button>,
   );

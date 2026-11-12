@@ -1,6 +1,6 @@
 {
   "productName": "VTVL Batch",
-  "version": "1.0.11",
+  "version": "1.0.12",
   "identifier": "vn.vtvl.batch",
   "build": {
     "frontendDist": "../dist",
@@ -14,7 +14,7 @@
         "title": "VTVL Batch – Quản lý cây đơn vị",
         "width": 1350,
         "height": 780,
-        "minWidth": 1350,
+        "minWidth": 900,
         "minHeight": 600,
         "maximized": true
       }

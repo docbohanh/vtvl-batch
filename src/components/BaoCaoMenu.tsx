@@ -39,7 +39,7 @@ export function BaoCaoMenu() {
     <div className="tk-qt bc-menu" ref={goc}>
       <span className="nhan-truong"><IcTaiXuong /> Báo cáo</span>
       <button type="button" className="nut tk-qt__nut" aria-haspopup="menu" aria-expanded={moMenu} aria-controls={id} onClick={() => setMoMenu((m) => !m)} title="Chọn báo cáo cần xuất">
-        Xuất báo cáo <span className="bc-menu__mui" aria-hidden="true">▾</span>
+        Báo cáo <span className="bc-menu__mui" aria-hidden="true">▾</span>
       </button>
       {moMenu && (
         <ul id={id} className="bc-menu__ds" role="menu" aria-label="Chọn báo cáo cần xuất">

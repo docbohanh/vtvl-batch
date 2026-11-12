@@ -7,7 +7,7 @@ import { CapNhatPhienBan } from './components/CapNhatPhienBan';
 import { BaoCaoMenu } from './components/BaoCaoMenu';
 import { CongMatKhau } from './components/CongMatKhau';
 import { HopDonVi } from './components/HopDonVi';
-import { IcNguoi, IcThuMuc } from './components/Icons';
+import { IcThuMuc } from './components/Icons';
 import { LoPage } from './components/LoPage';
 import { Tong } from './components/Tong';
 import type { LocTrangThai } from './loc';
@@ -72,9 +72,14 @@ export default function App() {
       setDaNapLo(true);
       nhoDuongDan(p);
       setLichSu((cu) => { const moi = themLichSu(cu, { duongDan: p, luc: new Date().toISOString(), soDonVi: ds.length }); ghiLichSu(moi); return moi; });
-      setNguoi(await api.layNguoi());
     } catch (e) { setThongBao(loiThanhChuoi(e)); }
   }, []);
+
+  // Không còn ô nhập tên: người vận hành là tài khoản quản trị đang dùng (ghi nhật ký, xác nhận xóa/gửi)
+  useEffect(() => {
+    const ten = tkQuanTri?.tenDangNhap;
+    if (ten && ten !== nguoi) { setNguoi(ten); void api.datNguoi(ten); }
+  }, [tkQuanTri?.tenDangNhap, nguoi]);
 
   const capNhatLichSu = (moi: MucLichSu[]) => { setLichSu(moi); ghiLichSu(moi); };
 
@@ -131,13 +136,9 @@ export default function App() {
           <div className="tk-qt">
             <span className="nhan-truong"><IcThuMuc /> Batch JSON</span>
             <button type="button" className={`nut tk-qt__nut${trang === 'lo' ? ' nut--chinh' : ''}`} aria-pressed={trang === 'lo'} onClick={() => setTrang((t) => (t === 'lo' ? 'quan_tri' : 'lo'))} title={trang === 'lo' ? 'Quay lại trang Quản trị' : 'Xem giao diện theo lô (tệp JSON): thêm đơn vị, kiểm tra kết nối, chuẩn bị, gửi'}>
-              {trang === 'lo' ? '← Về Quản trị' : 'Xem giao diện json'}
+              {trang === 'lo' ? '← Quản trị' : 'Giao diện JSON'}
             </button>
           </div>
-          <label className="nguoi">
-            <span className="nhan-truong"><IcNguoi /> Người vận hành</span>
-            <input value={nguoi} onChange={(e) => { setNguoi(e.target.value); void api.datNguoi(e.target.value); }} placeholder="Họ và tên người xác nhận" autoComplete="name" />
-          </label>
         </div>
       </header>
 
