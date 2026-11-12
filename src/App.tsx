@@ -121,9 +121,13 @@ export default function App() {
         </div>
         {trang === 'lo' && don.length > 0 && <div className="thanh-tren__giua"><Tong don={don} loc={loc} onLoc={setLoc} /></div>}
         <div className="thanh-tren__phai">
-          <BaoCaoMenu />
-          <CapNhatPhienBan />
-          <TaiKhoanQuanTri tinhTrang={tkQuanTri} onXong={(tt) => { setTkQuanTri(tt); setLanDoiTaiKhoan((n) => n + 1); }} />
+          {trang !== 'lo' && (
+            <>
+              <BaoCaoMenu />
+              <CapNhatPhienBan />
+              <TaiKhoanQuanTri tinhTrang={tkQuanTri} onXong={(tt) => { setTkQuanTri(tt); setLanDoiTaiKhoan((n) => n + 1); }} />
+            </>
+          )}
           <div className="tk-qt">
             <span className="nhan-truong"><IcThuMuc /> Batch JSON</span>
             <button type="button" className={`nut tk-qt__nut${trang === 'lo' ? ' nut--chinh' : ''}`} aria-pressed={trang === 'lo'} onClick={() => setTrang((t) => (t === 'lo' ? 'quan_tri' : 'lo'))} title={trang === 'lo' ? 'Quay lại trang Quản trị' : 'Xem giao diện theo lô (tệp JSON): thêm đơn vị, kiểm tra kết nối, chuẩn bị, gửi'}>

@@ -4307,7 +4307,7 @@ dependencies = [
 
 [[package]]
 name = "vtvl-batch"
-version = "1.0.9"
+version = "1.0.10"
 dependencies = [
  "bcrypt",
  "chrono",
