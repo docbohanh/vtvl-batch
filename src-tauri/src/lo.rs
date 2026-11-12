@@ -356,6 +356,9 @@ pub struct SuKien<'a> {
     pub ket_qua: Option<&'a str>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub nguoi: Option<&'a str>,
+    /// Định danh máy (tên máy, MAC, IP) cho thao tác không hoàn tác được; chỉ ghi nhật ký cục bộ.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub may: Option<&'a crate::may::DinhDanhMay>,
 }
 
 /// Nhật ký một dòng JSON mỗi sự kiện. Chỉ ghi thời điểm, sự kiện, mã, số lượng: không cookie, không giá trị ô.
@@ -366,7 +369,7 @@ pub fn ghi_nhat_ky(dir: &Path, e: &SuKien) -> Result<(), String> {
 }
 
 pub fn su_kien<'a>(ten: &'a str) -> SuKien<'a> {
-    SuKien { luc: bay_gio(), su_kien: ten, changeset_id: None, so_thay_doi: None, ket_qua: None, nguoi: None }
+    SuKien { luc: bay_gio(), su_kien: ten, changeset_id: None, so_thay_doi: None, ket_qua: None, nguoi: None, may: None }
 }
 
 // ---------------------------------------------------------------------------

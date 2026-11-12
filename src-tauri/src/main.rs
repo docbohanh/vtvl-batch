@@ -15,6 +15,7 @@ mod lo;
 mod may_chu;
 mod portal;
 mod cap_nhat;
+mod may;
 mod quan_tri;
 mod xuat_b30k;
 mod tao_tai_khoan;
@@ -1250,8 +1251,10 @@ async fn xoa_du_lieu(username: String, state: State<'_, AppState>) -> Result<Vec
     let (sess, tk) = ngu_canh_xoa(&lo, &u, &state.cookies).await?;
     let tb = lo::thiet_bi(&lo.root)?;
     let ch = cau_hinh_gui(&lo.cfg.settings);
+    let may = may::doc();
     let mut e = lo::su_kien("xoa_du_lieu_bat_dau");
     e.nguoi = Some(&nguoi);
+    e.may = Some(&may);
     let _ = lo::ghi_nhat_ky(&dir, &e);
     // Như Desktop: xóa là thay đổi DELETE đẩy qua gói thay đổi; cổng chặn xóa trực tiếp qua REST với phiên web
     let tham_so = xoa_du_lieu::ThamSoXoa { dir: &dir, period_id: &tk.ky_id, submission_id: &tk.ho_so.id, device_id: &tb.device_id, toi_da: lo.cfg.settings.changeset_max_changes, nguoi: &nguoi, cau_hinh: &ch };
@@ -1261,6 +1264,7 @@ async fn xoa_du_lieu(username: String, state: State<'_, AppState>) -> Result<Vec
     e2.so_thay_doi = tong;
     e2.ket_qua = Some(if kq.is_ok() { "ok" } else { "loi" });
     e2.nguoi = Some(&nguoi);
+    e2.may = Some(&may);
     let _ = lo::ghi_nhat_ky(&dir, &e2);
     dat_lai_sau_doi(&dir, "Đã xóa dữ liệu trên cổng");
     kq
