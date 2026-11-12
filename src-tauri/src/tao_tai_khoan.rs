@@ -142,8 +142,8 @@ fn ma_dvhc(id: &str, nut: &[Nut]) -> Option<String> {
     None
 }
 
-/// Toàn bộ cây (phẳng) và danh sách tên đăng nhập đang có. Chỉ đọc.
-pub async fn lay_cay(sess: &Session, ngay: &str) -> Result<Cay, String> {
+/// Toàn bộ cây đơn vị (phẳng, mỗi nút có `cha_id`). Chỉ đọc.
+pub async fn lay_nut(sess: &Session, ngay: &str) -> Result<Vec<Nut>, String> {
     let tren = sess.get_json("/org-units/tree", &[("depth", "1"), ("activeAt", ngay), ("includeInactive", "false")]).await.map_err(loi)?;
     let mut nut = Vec::new();
     for goc in tren.as_array().into_iter().flatten() {
@@ -154,6 +154,12 @@ pub async fn lay_cay(sess: &Session, ngay: &str) -> Result<Cay, String> {
             None => duyet(&cay, None, &mut nut),
         }
     }
+    Ok(nut)
+}
+
+/// Toàn bộ cây (phẳng) và danh sách tên đăng nhập đang có. Chỉ đọc.
+pub async fn lay_cay(sess: &Session, ngay: &str) -> Result<Cay, String> {
+    let nut = lay_nut(sess, ngay).await?;
     let mut ten_dn = Vec::new();
     for trang in 1..=TOI_DA_TRANG {
         let j = sess.get_json("/admin/users", &[("page", &trang.to_string()), ("size", &TRANG_NGUOI_DUNG.to_string())]).await.map_err(loi)?;

@@ -135,3 +135,55 @@ test('so sánh: lệch quá 10% thì "lech", đúng ngưỡng 10% vẫn khớp, 
   assert.equal(khong.tyLe, null);
   assert.equal(khong.muc, null);
 });
+
+import { dungHangCay, toTien, NUT_CHUA_XEP } from '../../src/quanTri.ts';
+
+const nut = (id, ten, chaId = null) => ({ id, ma: id, ten, chaId });
+const ho = (orgId, ten, chua = 0) => ({ id: 'h-' + orgId, orgId, ma: orgId, ten, cap: 'XA', trangThai: 'DRAFT', tienDo: 0, capNhat: '', dongDat: 0, dongChuaDat: chua, canhBao: 0, taiKhoan: [] });
+const CAY = [nut('t', 'UBND tỉnh'), nut('x1', 'Xã B', 't'), nut('x2', 'Xã A', 't'), nut('tr', 'Trường 1', 'x1'), nut('bq', 'Ban 2', 'x1'), nut('rong', 'Xã trống', 't')];
+
+test('cây: cha ở trên, con thụt vào, anh em xếp theo tên; nhánh không có hồ sơ bị bỏ', () => {
+  const ds = [ho('t', 'UBND tỉnh'), ho('x1', 'Xã B'), ho('x2', 'Xã A'), ho('tr', 'Trường 1'), ho('bq', 'Ban 2')];
+  const r = dungHangCay(CAY, ds, new Set(['t', 'x1']), false);
+  assert.deepEqual(r.map((x) => [x.ten, x.sau]), [['UBND tỉnh', 0], ['Xã A', 1], ['Xã B', 1], ['Ban 2', 2], ['Trường 1', 2]]);
+});
+
+test('cây: nhánh đóng thì không hiện con; số hồ sơ và dòng chưa đạt cộng dồn cả nhánh', () => {
+  const ds = [ho('x1', 'Xã B', 1), ho('tr', 'Trường 1', 2), ho('bq', 'Ban 2', 3)];
+  const r = dungHangCay(CAY, ds, new Set(), false);
+  assert.equal(r.length, 1, 'chỉ gốc, mọi nhánh đóng');
+  assert.equal(r[0].ten, 'UBND tỉnh');
+  assert.equal(r[0].soHoSo, 3);
+  assert.equal(r[0].chuaDat, 6);
+  assert.equal(r[0].hoSo, null, 'đơn vị chỉ là nhóm thì không chọn được');
+  assert.equal(r[0].dangMo, false);
+});
+
+test('cây: mở hết khi đang tìm; đơn vị vừa có hồ sơ vừa có con thì giữ cả hai', () => {
+  const ds = [ho('x1', 'Xã B'), ho('tr', 'Trường 1')];
+  const r = dungHangCay(CAY, ds, new Set(), true);
+  assert.deepEqual(r.map((x) => x.ten), ['UBND tỉnh', 'Xã B', 'Trường 1']);
+  assert.ok(r[1].hoSo, 'Xã B có hồ sơ riêng');
+  assert.equal(r[1].coCon, true);
+  assert.equal(r[1].soHoSo, 2);
+});
+
+test('cây: hồ sơ không có trong cây gom vào nhóm "Chưa xếp vào cây"; không có cây thì tất cả vào nhóm đó', () => {
+  const r = dungHangCay([], [ho('z', 'Đơn vị Z'), ho('y', 'Đơn vị Y')], new Set([NUT_CHUA_XEP]), false);
+  assert.deepEqual(r.map((x) => [x.ten, x.sau]), [['Chưa xếp vào cây đơn vị', 0], ['Đơn vị Y', 1], ['Đơn vị Z', 1]]);
+  assert.equal(dungHangCay([], [ho('z', 'Z')], new Set(), false).length, 1, 'nhóm đóng chỉ hiện dòng nhóm');
+});
+
+test('cây: chu trình cha-con và nút trỏ về chính nó không làm treo', () => {
+  const vong = [nut('a', 'A', 'b'), nut('b', 'B', 'a'), nut('c', 'C', 'c')];
+  const r = dungHangCay(vong, [ho('a', 'A'), ho('b', 'B'), ho('c', 'C')], new Set(), true);
+  assert.ok(Array.isArray(r));
+  assert.ok(r.some((x) => x.ten === 'C'));
+});
+
+test('tổ tiên của một đơn vị, gần nhất trước; đơn vị không có trong cây thì rỗng', () => {
+  assert.deepEqual(toTien(CAY, 'tr'), ['x1', 't']);
+  assert.deepEqual(toTien(CAY, 't'), []);
+  assert.deepEqual(toTien(CAY, 'khong-co'), []);
+  assert.deepEqual(toTien([nut('a', 'A', 'b'), nut('b', 'B', 'a')], 'a'), ['b'], 'chặn vòng lặp');
+});

@@ -1,4 +1,4 @@
-import type { DongQt, HoSoQt, TomTatBieuQt } from './types';
+import type { DongQt, HoSoQt, NutQt, TomTatBieuQt } from './types';
 
 /** Ba biểu cần soi kỹ khi thẩm định: đo khối lượng, xác định nhu cầu, lập phương án. */
 export const KHOA_UU_TIEN: readonly string[] = ['b1', 'c3', 'd2'];
@@ -156,4 +156,92 @@ export function soSanhNguoi(b1: readonly DongQt[], c3: readonly DongQt[]): SoSan
   const tyLe = nguoiC3 > 0 ? nguoiB1 / nguoiC3 : null;
   const muc = tyLe === null ? null : Math.abs(tyLe - 1) <= NGUONG_LECH_KHOP + 1e-9 ? 'khop' : 'lech';
   return { gioB1, nguoiB1, nguoiC3, chenh: nguoiB1 - nguoiC3, tyLe, muc };
+}
+
+// ---------------------------------------------------------------------------
+// Cây đơn vị: nhóm hồ sơ theo đơn vị cha
+// ---------------------------------------------------------------------------
+
+/** Mã nút nhóm giả cho hồ sơ mà cổng không có nút đơn vị tương ứng trong cây. */
+export const NUT_CHUA_XEP = '__chua_xep__';
+
+/** Một dòng của cây đang hiện. `hoSo` có khi chính đơn vị này có hồ sơ (chọn được); đơn vị chỉ là nhóm thì `hoSo` null. */
+export interface HangCay {
+  id: string;
+  ten: string;
+  ma: string;
+  sau: number;
+  hoSo: HoSoQt | null;
+  coCon: boolean;
+  /** Số hồ sơ trong nhánh này (kể cả chính nó), tính trên danh sách đã lọc. */
+  soHoSo: number;
+  /** Số dòng chưa đạt cộng dồn của cả nhánh. */
+  chuaDat: number;
+  dangMo: boolean;
+}
+
+const soTen = (a: string, b: string): number => a.localeCompare(b, 'vi');
+
+/**
+ * Dựng các dòng cây đang hiện. Chỉ giữ nhánh có hồ sơ (trong danh sách đã lọc). Cha ở trên, con thụt vào, anh em xếp theo tên.
+ * `moHet` mở mọi nhánh (khi đang tìm kiếm); không thì chỉ mở nhánh có id trong `moRong`.
+ * Hồ sơ mà đơn vị không có trong cây gom vào nhóm "Chưa xếp vào cây".
+ */
+export function dungHangCay(nut: readonly NutQt[], hoSo: readonly HoSoQt[], moRong: ReadonlySet<string>, moHet: boolean): HangCay[] {
+  const theoId = new Map(nut.map((n) => [n.id, n]));
+  const hoSoCua = new Map<string, HoSoQt>();
+  const lacCay: HoSoQt[] = [];
+  for (const h of hoSo) {
+    if (theoId.has(h.orgId) && !hoSoCua.has(h.orgId)) hoSoCua.set(h.orgId, h);
+    else lacCay.push(h);
+  }
+  const con = new Map<string, NutQt[]>();
+  const goc: NutQt[] = [];
+  for (const n of nut) {
+    if (n.chaId && theoId.has(n.chaId) && n.chaId !== n.id) con.set(n.chaId, [...(con.get(n.chaId) ?? []), n]);
+    else goc.push(n);
+  }
+  // đếm hồ sơ cả nhánh (đệ quy có chặn vòng lặp)
+  const tong = new Map<string, { so: number; chua: number }>();
+  const dem = (n: NutQt, dangDi: Set<string>): { so: number; chua: number } => {
+    const cu = tong.get(n.id);
+    if (cu) return cu;
+    if (dangDi.has(n.id)) return { so: 0, chua: 0 };
+    dangDi.add(n.id);
+    const h = hoSoCua.get(n.id);
+    let kq = { so: h ? 1 : 0, chua: h?.dongChuaDat ?? 0 };
+    for (const c of con.get(n.id) ?? []) { const x = dem(c, dangDi); kq = { so: kq.so + x.so, chua: kq.chua + x.chua }; }
+    dangDi.delete(n.id);
+    tong.set(n.id, kq);
+    return kq;
+  };
+  goc.forEach((n) => dem(n, new Set()));
+  const ra: HangCay[] = [];
+  const di = (n: NutQt, sau: number, dangDi: Set<string>) => {
+    const t = tong.get(n.id);
+    if (!t || t.so === 0 || dangDi.has(n.id)) return;
+    const dsCon = (con.get(n.id) ?? []).filter((c) => (tong.get(c.id)?.so ?? 0) > 0).sort((a, b) => soTen(a.ten, b.ten));
+    const mo = moHet || moRong.has(n.id);
+    ra.push({ id: n.id, ten: n.ten, ma: n.ma, sau, hoSo: hoSoCua.get(n.id) ?? null, coCon: dsCon.length > 0, soHoSo: t.so, chuaDat: t.chua, dangMo: mo && dsCon.length > 0 });
+    if (!mo) return;
+    dangDi.add(n.id);
+    dsCon.forEach((c) => di(c, sau + 1, dangDi));
+    dangDi.delete(n.id);
+  };
+  goc.filter((n) => (tong.get(n.id)?.so ?? 0) > 0).sort((a, b) => soTen(a.ten, b.ten)).forEach((n) => di(n, 0, new Set()));
+  if (lacCay.length > 0) {
+    const mo = moHet || moRong.has(NUT_CHUA_XEP);
+    ra.push({ id: NUT_CHUA_XEP, ten: 'Chưa xếp vào cây đơn vị', ma: '', sau: 0, hoSo: null, coCon: true, soHoSo: lacCay.length, chuaDat: lacCay.reduce((t, h) => t + h.dongChuaDat, 0), dangMo: mo });
+    if (mo) [...lacCay].sort((a, b) => soTen(a.ten, b.ten)).forEach((h) => ra.push({ id: h.orgId || h.id, ten: h.ten, ma: h.ma, sau: 1, hoSo: h, coCon: false, soHoSo: 1, chuaDat: h.dongChuaDat, dangMo: false }));
+  }
+  return ra;
+}
+
+/** Id các nút tổ tiên của một đơn vị (để mở nhánh chứa hồ sơ đang chọn). */
+export function toTien(nut: readonly NutQt[], orgId: string): string[] {
+  const theoId = new Map(nut.map((n) => [n.id, n]));
+  const ra: string[] = [];
+  const thay = new Set<string>([orgId]);
+  for (let c = theoId.get(orgId)?.chaId; c && theoId.has(c) && !thay.has(c); c = theoId.get(c)?.chaId) { ra.push(c); thay.add(c); }
+  return ra;
 }

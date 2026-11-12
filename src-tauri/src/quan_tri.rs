@@ -98,6 +98,16 @@ pub struct Bieu {
     pub cot: Vec<Cot>,
 }
 
+/// Một nút của cây đơn vị trên cổng (để nhóm hồ sơ theo đơn vị cha).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct NutQt {
+    pub id: String,
+    pub ma: String,
+    pub ten: String,
+    #[serde(rename = "chaId")]
+    pub cha_id: Option<String>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DanhSach {
     #[serde(rename = "quetLuc")]
@@ -108,6 +118,9 @@ pub struct DanhSach {
     #[serde(rename = "hoSo")]
     pub ho_so: Vec<HoSoQt>,
     pub bieu: Vec<Bieu>,
+    /// Cây đơn vị; cache cũ chưa có thì rỗng (giao diện nhắc bấm "Cập nhật").
+    #[serde(default, rename = "donVi")]
+    pub don_vi: Vec<NutQt>,
 }
 
 // ---------------------------------------------------------------------------
@@ -211,7 +224,9 @@ pub async fn quet(s: &Session, bay_gio: &str) -> Result<DanhSach, String> {
     let ho_so_tho = lay_het_trang(s, "/submissions", &[("periodId", &ky.id), ("scope", "SUBTREE")], KICH_CO_TRANG_HO_SO, usize::MAX).await?;
     let ho_so = gan_tai_khoan(ho_so_tho.iter().map(doc_ho_so).collect(), &tai_khoan);
     let bieu = match ho_so.first() { Some(h) => quet_khung_bieu(s, &h.id).await?, None => Vec::new() };
-    Ok(DanhSach { quet_luc: bay_gio.to_string(), ky, tai_khoan, ho_so, bieu })
+    let don_vi = crate::tao_tai_khoan::lay_nut(s, &crate::tao_tai_khoan::hom_nay()).await?.into_iter()
+        .map(|n| NutQt { id: n.id, ma: n.ma, ten: n.ten, cha_id: n.cha_id }).collect();
+    Ok(DanhSach { quet_luc: bay_gio.to_string(), ky, tai_khoan, ho_so, bieu, don_vi })
 }
 
 /// Khung các biểu (tên, bước, cột) lấy từ một hồ sơ bất kỳ: mọi hồ sơ cùng kỳ dùng chung phiên bản biểu.
@@ -404,6 +419,15 @@ mod tests {
         assert!(doc_dong(&json!({})).loi.is_empty());
     }
 
+    #[test]
+    fn cache_cu_khong_co_cay_van_doc_duoc() {
+        let cu = json!({"quetLuc": "t", "ky": {"id": "k", "ma": "m", "ten": "n", "tuNgay": "a", "denNgay": "b", "trangThai": "OPEN"}, "taiKhoan": [], "hoSo": [], "bieu": []});
+        let ds: DanhSach = serde_json::from_value(cu).unwrap();
+        assert!(ds.don_vi.is_empty());
+        let moi: DanhSach = serde_json::from_value(json!({"quetLuc": "t", "ky": {"id": "k", "ma": "m", "ten": "n", "tuNgay": "a", "denNgay": "b", "trangThai": "OPEN"}, "taiKhoan": [], "hoSo": [], "bieu": [], "donVi": [{"id": "1", "ma": "A", "ten": "Gốc", "chaId": null}, {"id": "2", "ma": "B", "ten": "Con", "chaId": "1"}]})).unwrap();
+        assert_eq!(moi.don_vi[1].cha_id.as_deref(), Some("1"));
+    }
+
     /// Thử thật (chỉ đọc): `VTVL_TEST_USER=… VTVL_TEST_PASS=… cargo test quet_that -- --ignored --nocapture`.
     #[tokio::test]
     #[ignore = "cần cổng thật và tài khoản quản trị trong biến môi trường"]
@@ -415,6 +439,9 @@ mod tests {
         let ds = quet(&s, "now").await.unwrap();
         let co_tk = ds.ho_so.iter().filter(|h| !h.tai_khoan.is_empty()).count();
         println!("KY {} {} | tai khoan {} | ho so {} (co tai khoan {}) | bieu {:?}", ds.ky.ma, ds.ky.trang_thai, ds.tai_khoan.len(), ds.ho_so.len(), co_tk, ds.bieu.iter().map(|b| (b.ma.clone(), b.cot.len())).collect::<Vec<_>>());
+        let ids: std::collections::HashSet<&str> = ds.don_vi.iter().map(|n| n.id.as_str()).collect();
+        let goc = ds.don_vi.iter().filter(|n| n.cha_id.as_deref().is_none_or(|c| !ids.contains(c))).count();
+        println!("CAY nut={} goc={} ho_so_co_nut={}/{}", ds.don_vi.len(), goc, ds.ho_so.iter().filter(|h| ids.contains(h.org_id.as_str())).count(), ds.ho_so.len());
         let h = ds.ho_so.iter().find(|h| h.dong_dat > 50).unwrap();
         for k in ["b1", "c3", "d2"] {
             let t = std::time::Instant::now();

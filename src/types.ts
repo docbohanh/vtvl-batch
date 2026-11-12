@@ -102,7 +102,8 @@ export interface HoSoQt {
 }
 export interface CotQt { chu: string; tieuDe: string; loai: string; kieu: string }
 export interface BieuQt { khoa: string; ma: string; tieuDe: string; buoc: number; cot: CotQt[] }
-export interface DanhSachQt { quetLuc: string; ky: KyQt; taiKhoan: TaiKhoanQt[]; hoSo: HoSoQt[]; bieu: BieuQt[] }
+export interface NutQt { id: string; ma: string; ten: string; chaId: string | null }
+export interface DanhSachQt { quetLuc: string; ky: KyQt; taiKhoan: TaiKhoanQt[]; hoSo: HoSoQt[]; bieu: BieuQt[]; /** Cây đơn vị; cache cũ chưa có thì rỗng. */ donVi?: NutQt[] }
 export interface TomTatBieuQt { khoa: string; ma: string; tieuDe: string; buoc: number; soDong: number; trangThai: string; dongChuaDat: number }
 export interface DongQt { so: number; duLieu: Record<string, unknown>; trangThai: string; loi: string[]; capNhat: string }
 export interface DuLieuBieuQt { bieu: BieuQt; trangThai: string; tong: number; dongDat: number; dongChuaDat: number; canhBao: number; dong: DongQt[]; biCat: boolean }

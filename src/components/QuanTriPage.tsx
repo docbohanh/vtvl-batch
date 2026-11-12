@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api, loiThanhChuoi } from '../api';
 import { dinhDangCapNhat } from '../tongQuan';
-import { locHoSo, NHAN_CHE_DO, type CheDoLoc } from '../quanTri';
+import { dungHangCay, locHoSo, NHAN_CHE_DO, NUT_CHUA_XEP, type CheDoLoc } from '../quanTri';
 import type { DanhSachQt, HoSoQt } from '../types';
+import { CayHoSo } from './CayHoSo';
 import { HoSoQuanTri } from './HoSoQuanTri';
 import { IcCanhBao, IcLamMoi, IcTim } from './Icons';
 
-const SO_HIEN_TOI_DA = 300;
 const CAC_CHE_DO = Object.keys(NHAN_CHE_DO) as CheDoLoc[];
 
 export interface QuanTriPageProps {
@@ -23,6 +23,7 @@ export function QuanTriPage({ daNapLo, onQuanTri }: QuanTriPageProps) {
   const [tim, setTim] = useState('');
   const [che, setChe] = useState<CheDoLoc>('tat_ca');
   const [chon, setChon] = useState<string | null>(null);
+  const [moRong, setMoRong] = useState<ReadonlySet<string>>(new Set()); // nhánh đang mở trong cây
 
   const tai = useCallback(async (lamMoi: boolean) => {
     setDangQuet(true); setLoi(null);
@@ -31,7 +32,19 @@ export function QuanTriPage({ daNapLo, onQuanTri }: QuanTriPageProps) {
 
   useEffect(() => { if (daNapLo) void tai(false); }, [daNapLo, tai]);
 
+  // mỗi lần có danh sách mới: mở các gốc của cây để thấy ngay cấp đầu tiên
+  const cacNut = ds?.donVi ?? [];
+  useEffect(() => {
+    if (!ds) return;
+    const co = new Set((ds.donVi ?? []).map((n) => n.id));
+    setMoRong(new Set([NUT_CHUA_XEP, ...(ds.donVi ?? []).filter((n) => !n.chaId || !co.has(n.chaId)).map((n) => n.id)]));
+  }, [ds]);
+
   const hienThi = useMemo(() => (ds ? locHoSo(ds.hoSo, tim, che) : []), [ds, tim, che]);
+  const dangTim = tim.trim() !== '' || che !== 'tat_ca'; // đang lọc thì mở hết để thấy mọi kết quả
+  const hangCay = useMemo(() => dungHangCay(cacNut, hienThi, moRong, dangTim), [cacNut, hienThi, moRong, dangTim]);
+  const doiNhanh = (id: string) => setMoRong((cu) => { const n = new Set(cu); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+  const coCon = useMemo(() => new Set(cacNut.map((n) => n.chaId).filter((c): c is string => !!c)), [cacNut]);
   const hoSoChon: HoSoQt | undefined = ds?.hoSo.find((h) => h.id === chon);
 
   if (!daNapLo) {
@@ -68,22 +81,16 @@ export function QuanTriPage({ daNapLo, onQuanTri }: QuanTriPageProps) {
               <button key={c} type="button" className={`loc-nut${che === c ? ' loc-nut--chon' : ''}`} aria-pressed={che === c} onClick={() => setChe(c)}>{NHAN_CHE_DO[c]}</button>
             ))}
           </div>
-          <ul className="qt__muc" aria-label={`${hienThi.length} hồ sơ`}>
-            {hienThi.slice(0, SO_HIEN_TOI_DA).map((h) => (
-              <li key={h.id}>
-                <button type="button" className={`qt__hang${h.id === chon ? ' qt__hang--chon' : ''}`} aria-current={h.id === chon} onClick={() => setChon(h.id)}>
-                  <span className="qt__ten">{h.ten}</span>
-                  <span className="qt__phu">{h.taiKhoan[0] ?? 'chưa có tài khoản'}{h.taiKhoan.length > 1 ? ` +${h.taiKhoan.length - 1}` : ''}</span>
-                  <span className="qt__so">
-                    <span className="qt__tien-do" aria-label={`Tiến độ ${h.tienDo}%`}><i style={{ width: `${Math.min(100, h.tienDo)}%` }} /></span>
-                    {h.dongChuaDat > 0 && <span className="qt__chua-dat">{h.dongChuaDat} chưa đạt</span>}
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ul>
-          {hienThi.length > SO_HIEN_TOI_DA && <p className="qt__phu qt__them">Hiện {SO_HIEN_TOI_DA}/{hienThi.length}. Gõ để thu hẹp danh sách.</p>}
-          {ds && hienThi.length === 0 && <p className="qt__phu qt__them">Không có hồ sơ nào khớp.</p>}
+          <div className="qt__cay-nut">
+            <button type="button" className="loc-nut" onClick={() => setMoRong(new Set([NUT_CHUA_XEP, ...coCon]))} disabled={!ds}>Mở hết</button>
+            <button type="button" className="loc-nut" onClick={() => setMoRong(new Set([NUT_CHUA_XEP, ...cacNut.filter((n) => !n.chaId || !cacNut.some((x) => x.id === n.chaId)).map((n) => n.id)]))} disabled={!ds}>Chỉ cấp đầu</button>
+            <span className="qt__phu">{hienThi.length} hồ sơ</span>
+          </div>
+          <div className="qt__cuon-cay">
+            {ds && cacNut.length === 0 && <p className="thong-bao thong-bao--chu-y"><IcCanhBao />Bản lưu cũ chưa có cây đơn vị. Bấm “Cập nhật” để dựng cây.</p>}
+            <CayHoSo hang={hangCay} chon={chon} onChon={setChon} onDoi={doiNhanh} />
+            {ds && hienThi.length === 0 && <p className="qt__phu qt__them">Không có hồ sơ nào khớp.</p>}
+          </div>
         </aside>
 
         <div className="qt__chi-tiet">
