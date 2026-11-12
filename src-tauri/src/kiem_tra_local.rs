@@ -3,7 +3,8 @@
 
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
-use std::path::Path;
+use std::ffi::OsStr;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 use tokio::process::Command;
 
@@ -85,17 +86,62 @@ pub fn tham_so(y: &YeuCau) -> Vec<String> {
     a
 }
 
+/// Số phiên bản dạng `v22.21.1` → (22, 21, 1); tên không đúng dạng thì None.
+fn so_phien_ban(ten: &str) -> Option<(u32, u32, u32)> {
+    let mut p = ten.strip_prefix('v')?.split('.').map(|x| x.parse::<u32>());
+    Some((p.next()?.ok()?, p.next()?.ok()?, p.next()?.ok()?))
+}
+
+/// Các thư mục thường cài Node nhưng hay không có trong PATH của ứng dụng mở từ Finder/menu Start.
+fn thu_muc_node_pho_bien() -> Vec<PathBuf> {
+    let mut ra: Vec<PathBuf> = ["/usr/local/bin", "/opt/homebrew/bin", "/usr/bin"].iter().map(PathBuf::from).collect();
+    let nha = std::env::var_os("HOME").or_else(|| std::env::var_os("USERPROFILE")).map(PathBuf::from);
+    if let Some(nha) = nha {
+        ra.push(nha.join(".volta").join("bin"));
+        // nvm: phiên bản cao nhất trước
+        if let Ok(rd) = std::fs::read_dir(nha.join(".nvm").join("versions").join("node")) {
+            let mut v: Vec<_> = rd.flatten().filter_map(|e| so_phien_ban(&e.file_name().to_string_lossy()).map(|k| (k, e.path()))).collect();
+            v.sort_by(|a, b| b.0.cmp(&a.0));
+            ra.extend(v.into_iter().map(|(_, d)| d.join("bin")));
+        }
+    }
+    for bien in ["ProgramFiles", "ProgramFiles(x86)"] {
+        if let Some(d) = std::env::var_os(bien) { ra.push(PathBuf::from(d).join("nodejs")); }
+    }
+    if let Some(d) = std::env::var_os("LOCALAPPDATA") { ra.push(PathBuf::from(d).join("Programs").join("nodejs")); }
+    ra
+}
+
+/// Tìm tệp chạy Node theo thứ tự: tên có dấu `/` hoặc `\` (đường dẫn) dùng nguyên; không thì dò PATH rồi các nơi cài phổ biến.
+/// Không thấy thì trả lại đúng tên đã cho để lỗi báo rõ.
+pub fn tim_node(ten: &str) -> String {
+    tim_node_trong(ten, &std::env::var_os("PATH").unwrap_or_default(), &thu_muc_node_pho_bien())
+}
+
+fn tim_node_trong(ten: &str, duong_path: &OsStr, them: &[PathBuf]) -> String {
+    if ten.contains('/') || ten.contains('\\') {
+        return ten.to_string();
+    }
+    let ten_exe = format!("{ten}.exe");
+    std::env::split_paths(duong_path).chain(them.iter().cloned())
+        .flat_map(|d| [d.join(ten), d.join(&ten_exe)])
+        .find(|f| f.is_file())
+        .map(|f| f.to_string_lossy().into_owned())
+        .unwrap_or_else(|| ten.to_string())
+}
+
 /// Trả kết quả có kiểu và bản JSON gốc (để lưu `kiem-tra/<runId>.json`).
 pub async fn chay(y: &YeuCau<'_>) -> Result<(KetQuaKiemTra, serde_json::Value), String> {
     if !y.script.is_file() {
         return Err(format!("Không thấy tập lệnh kiểm tra tệp: {}. Kiểm tra kiemTraScript trong cấu hình lô.", y.script.display()));
     }
-    let mut cmd = Command::new(y.node);
+    let node = tim_node(y.node);
+    let mut cmd = Command::new(&node);
     cmd.args(tham_so(y)).kill_on_drop(true).stdin(std::process::Stdio::null());
     let out = tokio::time::timeout(y.timeout, cmd.output())
         .await
         .map_err(|_| format!("Kiểm tra tệp quá {} giây", y.timeout.as_secs()))?
-        .map_err(|e| format!("Không chạy được Node ({}): {e}. Kiểm tra `node` trong cấu hình lô.", y.node))?;
+        .map_err(|e| format!("Không chạy được Node ({node}): {e}. Cài Node.js 20 trở lên hoặc đặt đường dẫn đầy đủ vào `settings.node` trong cấu hình lô."))?;
     if !out.status.success() {
         return Err(loi_tu_stderr(&String::from_utf8_lossy(&out.stderr)));
     }
@@ -149,6 +195,32 @@ mod tests {
         assert_eq!(r.dong_loi_chan().into_iter().collect::<Vec<_>>(), vec![("a1".to_string(), 4)]);
         assert_eq!(r.dong["a1"][0].data["A"].as_deref(), Some("NV-1"));
         assert!(doc_ket_qua("không có json").is_err());
+    }
+
+    #[test]
+    fn so_phien_ban_doc_dung_dang_vx_y_z() {
+        assert_eq!(so_phien_ban("v22.21.1"), Some((22, 21, 1)));
+        assert_eq!(so_phien_ban("v8.9.0") < so_phien_ban("v20.0.0"), true, "so sánh theo số, không theo chữ");
+        for sai in ["22.21.1", "v22", "latest", "v1.x.2"] { assert_eq!(so_phien_ban(sai), None, "{sai}"); }
+    }
+
+    #[test]
+    fn tim_node_do_path_roi_cac_noi_cai_pho_bien() {
+        let dir = tempfile::tempdir().unwrap();
+        let (a, b) = (dir.path().join("a"), dir.path().join("b"));
+        std::fs::create_dir_all(&a).unwrap();
+        std::fs::create_dir_all(&b).unwrap();
+        let tep = if cfg!(windows) { "node.exe" } else { "node" };
+        std::fs::write(b.join(tep), "").unwrap();
+        // chỉ có ở thư mục phổ biến (không có trong PATH): vẫn tìm được, như khi mở app từ Finder
+        let thay = tim_node_trong("node", a.as_os_str(), &[b.clone()]);
+        assert_eq!(PathBuf::from(&thay), b.join(tep));
+        // có trong PATH thì ưu tiên PATH
+        std::fs::write(a.join(tep), "").unwrap();
+        assert_eq!(PathBuf::from(tim_node_trong("node", a.as_os_str(), &[b.clone()])), a.join(tep));
+        // đường dẫn tường minh giữ nguyên; không thấy ở đâu thì trả lại tên
+        assert_eq!(tim_node_trong("/opt/x/node", a.as_os_str(), &[b.clone()]), "/opt/x/node");
+        assert_eq!(tim_node_trong("khong-co-node", a.as_os_str(), &[b]), "khong-co-node");
     }
 
     #[tokio::test]
