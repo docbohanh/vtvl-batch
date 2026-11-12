@@ -9,7 +9,8 @@
     "settings.kiemTraScript": "Tập lệnh kiểm tra tệp Excel cục bộ, tính từ thư mục ứng dụng. Đã chép sẵn trong scripts/kiem-tra/ (không cần vtvl_app); cần npm install.",
     "settings.node": "Lệnh/đường dẫn Node dùng chạy tập lệnh kiểm tra tệp Excel. Mặc định 'node'; nếu ứng dụng không thấy node trong PATH thì đặt đường dẫn đầy đủ.",
     "settings.nguoiVanHanh": "Người vận hành điền sẵn ở đầu trang (người xác nhận gửi/xóa, ghi vào nhật ký). Sửa được trên giao diện cho phiên làm việc. Mặc định 'Lã Hữu Thành'.",
-    "units": "Có thể thêm đơn vị bằng nút 'Thêm đơn vị' trên giao diện; ứng dụng ghi thêm một mục vào mảng này."
+    "units": "Có thể thêm đơn vị bằng nút 'Thêm đơn vị' trên giao diện; ứng dụng ghi thêm một mục vào mảng này.",
+    "settings.taiKhoanQuanTri": "Tài khoản quản trị cổng, dùng cho nút 'Tạo tài khoản' (tạo đơn vị con + tài khoản Đầu mối dữ liệu/Cán bộ kê khai). Chỉ đọc vào bộ nhớ, không ghi lại; tệp này chứa bí mật: không commit, không gửi đi."
   },
   "baseUrl": "https://kekhaivtvl.dcs.vn",
   "dataRoot": "data",
@@ -24,7 +25,11 @@
     "choPhepGuiThat": false,
     "node": "node",
     "kiemTraScript": "scripts/kiem-tra/cli.mjs",
-    "nguoiVanHanh": "Lã Hữu Thành"
+    "nguoiVanHanh": "Lã Hữu Thành",
+    "taiKhoanQuanTri": {
+      "username": "",
+      "password": ""
+    }
   },
   "units": [
     {

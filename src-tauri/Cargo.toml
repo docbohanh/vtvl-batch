@@ -15,9 +15,11 @@ sha2 = "0.10"
 uuid = { version = "1", features = ["v4", "v7"] }
 flate2 = "1"
 bcrypt = "0.17"
+rust_xlsxwriter = "0.102.0"
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
 [dev-dependencies]
 tempfile = "3"
+zip = { version = "9.5.0", default-features = false, features = ["deflate"] }

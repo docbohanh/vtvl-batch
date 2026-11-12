@@ -51,6 +51,9 @@ pub struct Settings {
     /// Người vận hành mặc định điền sẵn ở đầu trang (xác nhận gửi/xóa); người dùng vẫn sửa được.
     #[serde(default = "d_nguoi", rename = "nguoiVanHanh")]
     pub nguoi_van_hanh: String,
+    /// Tài khoản quản trị để tạo đơn vị con + tài khoản trên cổng (tùy chọn). Không ghi lại ra tệp.
+    #[serde(default, rename = "taiKhoanQuanTri", skip_serializing)]
+    pub tai_khoan_quan_tri: Option<crate::tao_tai_khoan::TaiKhoanQuanTri>,
 }
 
 impl Default for Settings {
@@ -114,10 +117,7 @@ pub fn safe_username(name: &str) -> Result<String, String> {
 impl LoConfig {
     /// Đọc và kiểm tra: tài khoản hợp lệ, không trùng, `single` phải có `formKey`.
     pub fn nap(path: &Path) -> Result<Self, String> {
-        let cfg: LoConfig = doc_json(path)?;
-        if cfg.units.is_empty() {
-            return Err("Danh sách đơn vị trống".into());
-        }
+        let cfg: LoConfig = doc_json(path)?; // lô trống (chưa có đơn vị) là hợp lệ: đơn vị thêm sau bằng tay
         let mut seen = std::collections::HashSet::new();
         for u in &cfg.units {
             let n = safe_username(&u.username)?;
@@ -224,15 +224,12 @@ pub fn sua_don_vi_trong_tep(path: &Path, dir_don_vi: &Path, d: &SuaDonVi) -> Res
 }
 
 /// Xóa một đơn vị khỏi mảng `units` của tệp JSON của lô. Không xóa thư mục dữ liệu `data/<tài khoản>/` (giữ gói thay đổi, biên nhận, nhật ký).
-/// Từ chối xóa đơn vị cuối cùng vì lô rỗng không nạp được.
+/// Xóa được cả đơn vị cuối cùng: lô trống vẫn hợp lệ (thêm đơn vị lại bằng tay).
 pub fn xoa_don_vi_khoi_tep(path: &Path, username: &str) -> Result<(), String> {
     let ten = safe_username(username)?;
     let mut goc: serde_json::Value = doc_json(path)?;
     let ds = goc.get_mut("units").and_then(|u| u.as_array_mut()).ok_or("Tệp cấu hình thiếu mảng units")?;
     let vi_tri = ds.iter().position(|u| u["username"].as_str().is_some_and(|n| n.trim().to_lowercase() == ten)).ok_or_else(|| format!("Không có tài khoản {ten} trong tệp cấu hình"))?;
-    if ds.len() == 1 {
-        return Err("Không thể xóa đơn vị cuối cùng: lô phải còn ít nhất một đơn vị".into());
-    }
     ds.remove(vi_tri);
     ghi_json(path, &goc)
 }
@@ -311,6 +308,32 @@ pub fn ghi_json<T: Serialize>(path: &Path, v: &T) -> Result<(), String> {
     }
     fs::write(&tmp, format!("{text}\n")).map_err(|e| format!("Không ghi được {}: {e}", tmp.display()))?;
     fs::rename(&tmp, path).map_err(|e| format!("Không đổi tên {}: {e}", path.display()))
+}
+
+/// Nội dung lô trống ban đầu: chưa có đơn vị, mọi cài đặt mặc định, chế độ khô (`choPhepGuiThat` = false).
+/// `kiem_tra_script` (nếu có) là đường dẫn tuyệt đối của tập lệnh kiểm tra tệp Excel tìm thấy trên máy.
+pub fn lo_trong_json(kiem_tra_script: Option<&str>) -> serde_json::Value {
+    let mut settings = serde_json::json!({
+        "concurrency": d_concurrency(), "requestIntervalMs": d_interval(), "timeoutSec": d_timeout(), "retryCount": d_retry(),
+        "pollIntervalMs": d_poll(), "changesetMaxChanges": d_max_changes(), "choPhepXoaDong": true, "choPhepGuiThat": false,
+        "node": d_node(), "kiemTraScript": d_kiem_tra(), "nguoiVanHanh": d_nguoi(),
+        "taiKhoanQuanTri": {"username": "", "password": ""},
+    });
+    if let Some(s) = kiem_tra_script {
+        settings["kiemTraScript"] = s.into();
+    }
+    serde_json::json!({
+        "schema": SCHEMA, "baseUrl": "https://kekhaivtvl.dcs.vn", "dataRoot": "data", "settings": settings, "units": [],
+    })
+}
+
+/// Tạo tệp lô trống tại `path` nếu chưa có (không bao giờ ghi đè). Trả `true` nếu vừa tạo.
+pub fn tao_lo_trong(path: &Path, kiem_tra_script: Option<&str>) -> Result<bool, String> {
+    if path.exists() {
+        return Ok(false);
+    }
+    ghi_json_moi(path, &lo_trong_json(kiem_tra_script))?;
+    Ok(true)
 }
 
 /// Ghi tệp bất biến: lỗi nếu đã tồn tại (gói thay đổi và biên nhận không bao giờ sửa sau khi tạo).
@@ -457,7 +480,32 @@ pub fn ghi_trang_thai(dir: &Path, t: &TrangThai) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     #[test]
-    fn xoa_don_vi_giu_don_vi_khac_va_chan_xoa_cai_cuoi() {
+    fn lo_trong_nap_duoc_o_che_do_kho_va_khong_bao_gio_ghi_de() {
+        let dir = tempfile::tempdir().unwrap();
+        let p = dir.path().join("config").join("lo.json");
+        assert!(tao_lo_trong(&p, None).unwrap(), "lần đầu thì tạo (kể cả thư mục config)");
+        let cfg = LoConfig::nap(&p).unwrap();
+        assert!(cfg.units.is_empty());
+        assert_eq!((cfg.base_url.as_str(), cfg.data_root.as_str(), cfg.settings.cho_phep_gui_that), ("https://kekhaivtvl.dcs.vn", "data", false));
+        assert_eq!(cfg.settings.kiem_tra_script, "scripts/kiem-tra/cli.mjs");
+        std::fs::write(&p, r#"{"baseUrl":"x","units":[{"username":"a","excelFile":"x"}]}"#).unwrap();
+        assert!(!tao_lo_trong(&p, None).unwrap(), "đã có tệp thì giữ nguyên");
+        assert_eq!(LoConfig::nap(&p).unwrap().units.len(), 1);
+    }
+
+    #[test]
+    fn lo_trong_dung_duoc_tap_lenh_kiem_tra_tuyet_doi_va_them_don_vi_tay() {
+        let dir = tempfile::tempdir().unwrap();
+        let p = dir.path().join("lo.json");
+        tao_lo_trong(&p, Some("/opt/vtvl/scripts/kiem-tra/cli.mjs")).unwrap();
+        assert_eq!(LoConfig::nap(&p).unwrap().settings.kiem_tra_script, "/opt/vtvl/scripts/kiem-tra/cli.mjs");
+        let d = ThemDonVi { username: "Kekhai_NB_Test".into(), label: "Đơn vị thử".into(), password: String::new(), excel_file: String::new(), duong: String::new() };
+        assert_eq!(them_don_vi_vao_tep(&p, &d).unwrap(), "kekhai_nb_test");
+        assert_eq!(LoConfig::nap(&p).unwrap().units.len(), 1);
+    }
+
+    #[test]
+    fn xoa_don_vi_giu_don_vi_khac_va_cho_xoa_ca_cai_cuoi() {
         let dir = std::env::temp_dir().join(format!("vtvl-xoa-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let p = dir.join("lo.json");
@@ -465,8 +513,9 @@ mod tests {
         xoa_don_vi_khoi_tep(&p, " A ").unwrap();
         let v: serde_json::Value = doc_json(&p).unwrap();
         assert_eq!((v["units"].as_array().unwrap().len(), v["units"][0]["password"].as_str()), (1, Some("giu")));
-        assert!(xoa_don_vi_khoi_tep(&p, "b").unwrap_err().contains("cuối cùng"));
         assert!(xoa_don_vi_khoi_tep(&p, "zz").is_err());
+        xoa_don_vi_khoi_tep(&p, "b").unwrap();
+        assert!(LoConfig::nap(&p).unwrap().units.is_empty(), "xóa hết vẫn nạp được lô trống");
         std::fs::remove_dir_all(&dir).ok();
     }
 

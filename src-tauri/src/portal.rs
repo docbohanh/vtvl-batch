@@ -15,6 +15,19 @@ use std::time::{Duration, Instant};
 const API: &str = "/api/v1";
 const MAX_DETAIL_CHARS: usize = 300;
 const RETRY_BASE_DELAY_MS: u64 = 500;
+/// Số lần thử lại một yêu cầu đọc khi cổng trả 429, và thời gian chờ (lần đầu, tối đa) giữa các lần.
+const SO_LAN_THU_LAI_429: u32 = 4;
+const CHO_429_DAU_MS: u64 = 2_000;
+const CHO_429_TOI_DA_MS: u64 = 30_000;
+
+/// Thời gian chờ trước lần thử lại thứ `lan` (từ 0) sau 429: theo `Retry-After` (giây) nếu cổng gửi, không thì 2s, 4s, 8s…; không quá 30s. Thuần.
+pub fn cho_sau_429(retry_after: Option<&str>, lan: u32) -> Duration {
+    let ms = retry_after
+        .and_then(|h| h.trim().parse::<u64>().ok())
+        .map(|giay| giay.saturating_mul(1000))
+        .unwrap_or_else(|| CHO_429_DAU_MS.saturating_mul(2u64.saturating_pow(lan)));
+    Duration::from_millis(ms.min(CHO_429_TOI_DA_MS))
+}
 const LAM_MOI_TRUOC: Duration = Duration::from_secs(30);
 const HAN_MAC_DINH_S: u64 = 300;
 
@@ -238,11 +251,20 @@ impl Session {
         check_status(self.send_raw(method, path, query, form, accept).await?).await
     }
 
+    /// GET JSON. Gặp 429 (cổng giới hạn tần suất) thì chờ rồi thử lại tối đa `SO_LAN_THU_LAI_429` lần (theo `Retry-After` nếu cổng gửi);
+    /// vẫn 429 thì trả lỗi như cũ. Chỉ áp cho GET vì đọc lặp lại không đổi gì trên cổng.
     pub async fn get_json(&self, path: &str, query: &[(&str, &str)]) -> Result<Value, StepError> {
-        let resp = self
-            .send(Method::GET, path, query, None, "application/json")
-            .await?;
-        parse_json(resp).await
+        let mut lan = 0;
+        loop {
+            let resp = self.send_raw(Method::GET, path, query, None, "application/json").await?;
+            if resp.status() == StatusCode::TOO_MANY_REQUESTS && lan < SO_LAN_THU_LAI_429 {
+                let cho = cho_sau_429(resp.headers().get("retry-after").and_then(|h| h.to_str().ok()), lan);
+                tokio::time::sleep(cho).await;
+                lan += 1;
+                continue;
+            }
+            return parse_json(check_status(resp).await?).await;
+        }
     }
 
     /// POST JSON (tùy chọn nén gzip) với các tiêu đề thêm; trả mã trạng thái và JSON. Dùng gửi gói thay đổi.
@@ -512,6 +534,17 @@ mod tests {
 
 
 
+
+    #[test]
+    fn cho_sau_429_theo_retry_after_hoac_tang_dan_va_co_tran() {
+        assert_eq!(cho_sau_429(Some("5"), 0), Duration::from_secs(5));
+        assert_eq!(cho_sau_429(Some(" 3 "), 2), Duration::from_secs(3));
+        assert_eq!(cho_sau_429(Some("9999"), 0), Duration::from_secs(30), "có trần 30 giây");
+        let cho: Vec<u64> = (0..4).map(|l| cho_sau_429(None, l).as_secs()).collect();
+        assert_eq!(cho, vec![2, 4, 8, 16]);
+        assert_eq!(cho_sau_429(Some("Wed, 21 Oct 2026 07:28:00 GMT"), 1), Duration::from_secs(4), "dạng ngày: bỏ qua, dùng tăng dần");
+        assert_eq!(cho_sau_429(None, 40), Duration::from_secs(30), "không tràn số");
+    }
 
     #[test]
     fn cookie_is_normalized() {

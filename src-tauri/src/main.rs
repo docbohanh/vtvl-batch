@@ -7,13 +7,16 @@ mod goi;
 mod imports;
 mod ket_chuyen;
 mod ket_noi;
+mod kiem_tra_lai;
 mod kiem_tra_local;
 mod lo;
 mod may_chu;
 mod portal;
+mod tao_tai_khoan;
 #[cfg(test)]
 mod thu_gia;
 mod thay_doi;
+mod tong_quan;
 mod xoa_du_lieu;
 
 use lo::{Buoc, LoConfig, TomTatKiemTra, TomTatThayDoi, TrangThai, UnitEntry};
@@ -299,6 +302,31 @@ fn nap_lo(p: &Path, state: &AppState) -> Result<Vec<DonViView>, String> {
     Ok(lo.cfg.units.iter().map(|u| xem(&lo, &ck, u)).collect())
 }
 
+/// Tập lệnh kiểm tra tệp Excel tìm được trên máy (cạnh tệp chạy, thư mục chạy hoặc cha của nó khi `tauri dev`): đường dẫn tuyệt đối, hoặc `None`.
+fn tim_tap_lenh_kiem_tra() -> Option<String> {
+    let tuong_doi = Path::new("scripts").join("kiem-tra").join("cli.mjs");
+    let mut goc: Vec<PathBuf> = Vec::new();
+    if let Ok(exe) = std::env::current_exe() {
+        goc.extend(exe.parent().map(Path::to_path_buf));
+    }
+    if let Ok(cwd) = std::env::current_dir() {
+        goc.push(cwd.clone());
+        goc.extend(cwd.parent().map(Path::to_path_buf));
+    }
+    goc.iter().map(|g| g.join(&tuong_doi)).find(|p| p.is_file()).and_then(|p| p.canonicalize().ok()).map(|p| p.to_string_lossy().into_owned())
+}
+
+/// Lần đầu mở ứng dụng (chưa có tệp JSON của lô): tạo sẵn lô trống `<thư mục dữ liệu ứng dụng>/config/lo.json` (nếu chưa có) và trả đường dẫn.
+/// Không bao giờ ghi đè tệp đã có. Dữ liệu từng tài khoản nằm ở `<thư mục dữ liệu ứng dụng>/data/`.
+#[tauri::command]
+fn khoi_tao_lo_trong(app: tauri::AppHandle, state: State<AppState>) -> Result<String, String> {
+    yeu_cau_da_mo(&state)?;
+    let dir = app.path().app_data_dir().map_err(|e| format!("Không xác định được thư mục dữ liệu ứng dụng: {e}"))?;
+    let p = dir.join("config").join("lo.json");
+    lo::tao_lo_trong(&p, tim_tap_lenh_kiem_tra().as_deref())?;
+    Ok(p.to_string_lossy().into_owned())
+}
+
 #[tauri::command]
 fn lo_nap(path: String, state: State<AppState>) -> Result<Vec<DonViView>, String> {
     nap_lo(&giai_duong_cau_hinh(&path)?, &state)
@@ -486,6 +514,65 @@ async fn kiem_tra_ket_noi_tat_ca(state: State<'_, AppState>) -> Result<Vec<DonVi
     }
     let ck = khoa(&state.cookies).clone();
     Ok(lo.cfg.units.iter().map(|u| xem(&lo, &ck, u)).collect())
+}
+
+// ---------------------------------------------------------------------------
+// Tạo tài khoản (đơn vị con + tài khoản kê khai) bằng tài khoản quản trị
+// ---------------------------------------------------------------------------
+
+async fn mo_phien_quan_tri(lo: &Lo) -> Result<Session, String> {
+    let qt = lo.cfg.settings.tai_khoan_quan_tri.as_ref().filter(|q| !q.username.is_empty() && !q.password.is_empty())
+        .ok_or("Chưa cấu hình settings.taiKhoanQuanTri (username, password) trong tệp JSON của lô")?;
+    let tb = thiet_bi_ung_dung(lo)?;
+    let dn = DangNhap::Desktop { username: &qt.username, password: &qt.password, thiet_bi: &tb };
+    portal::mo_phien(&lo.cfg.base_url, &dn, Duration::from_secs(lo.cfg.settings.timeout_sec)).await
+        .map_err(|e| format!("Đăng nhập tài khoản quản trị {} thất bại: {e}", qt.username))
+}
+
+/// Cây đơn vị trên cổng và các tên đăng nhập đã có, để giao diện chọn đơn vị cha. Chỉ đọc.
+#[tauri::command]
+async fn tq_lay_cay(state: State<'_, AppState>) -> Result<tao_tai_khoan::Cay, String> {
+    let lo = lay_lo(&state)?;
+    let sess = mo_phien_quan_tri(&lo).await?;
+    tao_tai_khoan::lay_cay(&sess, &tao_tai_khoan::hom_nay()).await
+}
+
+#[derive(Serialize)]
+struct KetQuaTaoView {
+    #[serde(flatten)]
+    kq: tao_tai_khoan::KetQuaTao,
+    /// Danh sách đơn vị của lô sau khi thêm (khi chọn thêm vào lô).
+    #[serde(rename = "donVi")]
+    don_vi: Option<Vec<DonViView>>,
+}
+
+/// Tạo đơn vị con + tài khoản trên cổng THẬT. Tùy chọn thêm luôn vào lô JSON (kèm mật khẩu tạm) để dùng ngay.
+#[tauri::command]
+async fn tq_tao(yeu_cau: tao_tai_khoan::YeuCauTao, them_vao_lo: bool, state: State<'_, AppState>) -> Result<KetQuaTaoView, String> {
+    let lo = lay_lo(&state)?;
+    let sess = mo_phien_quan_tri(&lo).await?;
+    let kq = tao_tai_khoan::tao(&sess, &yeu_cau, &tao_tai_khoan::hom_nay()).await?;
+    let mut e = lo::su_kien("tao_tai_khoan");
+    e.ket_qua = Some("ok");
+    let _ = lo::ghi_nhat_ky(&lo.root.join("_chung"), &e);
+    let don_vi = if them_vao_lo && !kq.mat_khau.is_empty() {
+        let p = khoa(&state.cau_hinh).clone().ok_or("Chưa nạp cấu hình lô")?;
+        let them = lo::ThemDonVi { username: kq.ten_dang_nhap.clone(), label: yeu_cau.ten.trim().to_string(), password: kq.mat_khau.clone(), excel_file: String::new(), duong: String::new() };
+        lo::them_don_vi_vao_tep(&p, &them)?;
+        Some(nap_lo(&p, &state)?)
+    } else {
+        None
+    };
+    Ok(KetQuaTaoView { kq, don_vi })
+}
+
+/// Xuất báo cáo Excel (Tên đơn vị | Tài khoản | Mật khẩu) vào `<data>/_chung/bao-cao/`; trả đường dẫn tệp. Tệp chứa mật khẩu nên nằm trong `data/` (đã loại khỏi git).
+#[tauri::command]
+fn tq_xuat_excel(hang: Vec<tao_tai_khoan::DongBaoCao>, ten_tep: String, state: State<AppState>) -> Result<String, String> {
+    let lo = lay_lo(&state)?;
+    let f = lo.root.join("_chung").join("bao-cao").join(tao_tai_khoan::ten_tep_bao_cao(&ten_tep)?);
+    tao_tai_khoan::xuat_excel(&f, &hang)?;
+    Ok(f.to_string_lossy().into_owned())
 }
 
 // ---------------------------------------------------------------------------
@@ -707,13 +794,10 @@ async fn chuan_bi_mot(lo: &Lo, u: &UnitEntry, ck: &KhoCookie) -> Result<(), Stri
     Ok(())
 }
 
-#[tauri::command]
-async fn chuan_bi(username: String, state: State<'_, AppState>) -> Result<(), String> {
-    let lo = lay_lo(&state)?;
-    let u = tim_unit(&lo, &username)?.clone();
-    let _khoa = KhoaTaiKhoan::lay(&state.dang_chay, &u.username)?;
+/// Chuẩn bị một đơn vị; lỗi được ghi vào trạng thái đơn vị (chặn hoặc lỗi) rồi trả lại.
+async fn chuan_bi_va_ghi_loi(lo: &Lo, u: &UnitEntry, ck: &KhoCookie) -> Result<(), String> {
     let dir = lo::unit_dir(&lo.root, &u.username)?;
-    match chuan_bi_mot(&lo, &u, &state.cookies).await {
+    match chuan_bi_mot(lo, u, ck).await {
         Ok(()) => Ok(()),
         Err(e) => {
             let chan = ["COOKIE_", "THIEU_QUYEN", "KY_DONG", "WAF", "DANG_NHAP", "CHUA_PHAN_CONG", "NGU_CANH"].iter().any(|p| e.starts_with(p));
@@ -721,6 +805,35 @@ async fn chuan_bi(username: String, state: State<'_, AppState>) -> Result<(), St
             Err(e)
         }
     }
+}
+
+#[tauri::command]
+async fn chuan_bi(username: String, state: State<'_, AppState>) -> Result<(), String> {
+    let lo = lay_lo(&state)?;
+    let u = tim_unit(&lo, &username)?.clone();
+    let _khoa = KhoaTaiKhoan::lay(&state.dang_chay, &u.username)?;
+    chuan_bi_va_ghi_loi(&lo, &u, &state.cookies).await
+}
+
+/// Chuẩn bị mọi đơn vị đang bật (kiểm tra Excel + tính thay đổi, không gửi gì), chạy song song theo `concurrency`. Lỗi từng đơn vị nằm trên thẻ của đơn vị đó.
+#[tauri::command]
+async fn chuan_bi_tat_ca(state: State<'_, AppState>) -> Result<Vec<DonViView>, String> {
+    let lo = lay_lo(&state)?;
+    let sem = Arc::new(Semaphore::new(lo.cfg.settings.concurrency.max(1)));
+    let mut tasks = Vec::new();
+    for u in lo.cfg.units.iter().filter(|u| u.enabled).cloned() {
+        let (lo, sem, ck, dang_chay) = (lo.clone(), sem.clone(), state.cookies.clone(), state.dang_chay.clone());
+        tasks.push(tokio::spawn(async move {
+            let Ok(_p) = sem.acquire_owned().await else { return };
+            let Ok(_k) = KhoaTaiKhoan::lay(&dang_chay, &u.username) else { return };
+            let _ = chuan_bi_va_ghi_loi(&lo, &u, &ck).await;
+        }));
+    }
+    for t in tasks {
+        t.await.map_err(|e| format!("Tác vụ bị dừng đột ngột: {e}"))?;
+    }
+    let ck = khoa(&state.cookies).clone();
+    Ok(lo.cfg.units.iter().map(|u| xem(&lo, &ck, u)).collect())
 }
 
 // ---------------------------------------------------------------------------
@@ -873,11 +986,54 @@ async fn gui_mot(lo: &Lo, u: &UnitEntry, ck: &KhoCookie, nguoi: &str, so_thay_do
     }
     let tk: ket_noi::TaiKhoan = lo::doc_json(&dir.join("tai-khoan.json"))?;
     let sess = mo_phien_don_vi(lo, u, ck).await?;
-    if tk.quyen.duong == "A" {
-        gui_a(lo, &sess, &dir, nguoi).await
+    let kq = if tk.quyen.duong == "A" {
+        gui_a(lo, &sess, &dir, nguoi).await?
     } else {
-        gui_b(lo, &tk, &sess, &dir, nguoi, so_thay_doi).await
+        gui_b(lo, &tk, &sess, &dir, nguoi, so_thay_doi).await?
+    };
+    if kq == LanGui::DaGui {
+        let _ = buoc_8_kiem_tra(&sess, &tk.ho_so.id, &dir, false).await;
     }
+    Ok(kq)
+}
+
+/// Chạy bước 8 "Kiểm tra" trên cổng (kiểm tra lại toàn bộ hồ sơ) để tiến độ bước 8 lên đủ. `rieng = false`: gọi sau khi gửi, không bao giờ
+/// làm hỏng lần gửi đã xong (lỗi chỉ ghi vào ghi chú, nhật ký). `rieng = true`: người dùng bấm "Gửi Bước 8", ghi chú được thay bằng kết quả
+/// mới và lỗi được trả về để hiển thị.
+async fn buoc_8_kiem_tra(sess: &Session, sid: &str, dir: &std::path::Path, rieng: bool) -> Result<(), String> {
+    let kq = kiem_tra_lai::chay(sess, sid, Duration::from_millis(kiem_tra_lai::CHU_KY_HOI_MS), Duration::from_secs(kiem_tra_lai::TOI_DA_CHO_S)).await;
+    let (ghi_chu, ket_qua) = match &kq {
+        Ok(k) => (kiem_tra_lai::tom_tat(k), if k.san_sang { "ok" } else { "con_chan" }),
+        Err(e) if rieng => (format!("Chưa chạy được bước 8 Kiểm tra trên cổng: {e}."), "loi"),
+        Err(e) => (format!("Đã gửi, nhưng chưa chạy được bước 8 Kiểm tra trên cổng: {e}. Vào Kiểm tra và gửi của ứng dụng Desktop bấm Kiểm tra lại."), "loi"),
+    };
+    cap_nhat(dir, |t| {
+        t.ghi_chu = Some(match t.ghi_chu.take() {
+            Some(cu) if !rieng && !cu.is_empty() => format!("{cu} {ghi_chu}"),
+            _ => ghi_chu.clone(),
+        });
+    });
+    let mut e = lo::su_kien("kiem_tra_lai");
+    e.ket_qua = Some(ket_qua);
+    let _ = lo::ghi_nhat_ky(dir, &e);
+    kq.map(|_| ())
+}
+
+/// Nút "Gửi Bước 8": chỉ chạy riêng bước kiểm tra lại trên cổng, không gửi gói thay đổi nào. Cần tên người vận hành và `choPhepGuiThat`.
+#[tauri::command]
+async fn gui_buoc_8(username: String, state: State<'_, AppState>) -> Result<(), String> {
+    let lo = lay_lo(&state)?;
+    let u = tim_unit(&lo, &username)?.clone();
+    if khoa(&state.nguoi).trim().is_empty() {
+        return Err("Nhập tên người vận hành trước khi gửi bước 8".into());
+    }
+    if !lo.cfg.settings.cho_phep_gui_that {
+        return Err("Chế độ khô: gửi bước 8 bị khóa. Bật choPhepGuiThat trong cấu hình lô để chạy thật.".into());
+    }
+    let _khoa = KhoaTaiKhoan::lay(&state.dang_chay, &u.username)?;
+    let dir = lo::unit_dir(&lo.root, &u.username)?;
+    let (sess, tk) = ngu_canh_xoa(&lo, &u, &state.cookies).await?;
+    buoc_8_kiem_tra(&sess, &tk.ho_so.id, &dir, true).await
 }
 
 async fn gui_va_ghi_loi(lo: &Lo, u: &UnitEntry, ck: &KhoCookie, nguoi: &str, so: usize) -> Result<(), String> {
@@ -1017,6 +1173,28 @@ async fn ngu_canh_xoa(lo: &Lo, u: &UnitEntry, ck: &KhoCookie) -> Result<(Session
     Ok((mo_phien_don_vi(lo, u, ck).await?, tk))
 }
 
+/// Kết quả "Tổng quan" gửi giao diện: lời chào, đơn vị, kỳ và số liệu như trang làm việc Desktop.
+#[derive(Serialize)]
+struct TongQuanView {
+    chao: String,
+    #[serde(rename = "donVi")]
+    don_vi: String,
+    ky: String,
+    #[serde(flatten)]
+    so_lieu: tong_quan::TongQuan,
+}
+
+/// Đọc số liệu tổng quan của đơn vị từ cổng (chỉ đọc). Cần đã có thông tin tài khoản (Kiểm tra kết nối).
+#[tauri::command]
+async fn tong_quan(username: String, state: State<'_, AppState>) -> Result<TongQuanView, String> {
+    let lo = lay_lo(&state)?;
+    let u = tim_unit(&lo, &username)?.clone();
+    let _khoa = KhoaTaiKhoan::lay(&state.dang_chay, &u.username)?;
+    let (sess, tk) = ngu_canh_xoa(&lo, &u, &state.cookies).await?;
+    let so_lieu = tong_quan::lay(&sess, &tk.org_id, &tk.ky_id).await?;
+    Ok(TongQuanView { chao: tk.ho_ten, don_vi: tk.don_vi, ky: tk.ky, so_lieu })
+}
+
 /// Đếm số dòng sẽ bị xóa (chỉ đọc).
 #[tauri::command]
 async fn xoa_dem(username: String, state: State<'_, AppState>) -> Result<Vec<xoa_du_lieu::DongDem>, String> {
@@ -1027,14 +1205,11 @@ async fn xoa_dem(username: String, state: State<'_, AppState>) -> Result<Vec<xoa
     xoa_du_lieu::dem_dong(&sess, &tk.ho_so.id, &xoa_du_lieu::bieu_mac_dinh(), Duration::from_millis(lo.cfg.settings.request_interval_ms)).await
 }
 
-/// Xóa toàn bộ dữ liệu của hồ sơ. Cần: gõ đúng chuỗi xác nhận, có tên người vận hành, và `choPhepGuiThat` (xóa không hoàn tác được).
+/// Xóa toàn bộ dữ liệu của hồ sơ. Cần: có tên người vận hành và `choPhepGuiThat` (xóa không hoàn tác được); giao diện bắt bấm hai lần để xác nhận.
 #[tauri::command]
-async fn xoa_du_lieu(username: String, xac_nhan: String, state: State<'_, AppState>) -> Result<Vec<xoa_du_lieu::KetQuaXoa>, String> {
+async fn xoa_du_lieu(username: String, state: State<'_, AppState>) -> Result<Vec<xoa_du_lieu::KetQuaXoa>, String> {
     let lo = lay_lo(&state)?;
     let u = tim_unit(&lo, &username)?.clone();
-    if xac_nhan.trim() != xoa_du_lieu::CHUOI_XAC_NHAN {
-        return Err(format!("Gõ đúng \"{}\" để xác nhận", xoa_du_lieu::CHUOI_XAC_NHAN));
-    }
     let nguoi = khoa(&state.nguoi).clone();
     if nguoi.trim().is_empty() {
         return Err("Nhập tên người vận hành trước khi xóa (ghi vào nhật ký)".into());
@@ -1067,7 +1242,7 @@ fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .manage(AppState::default())
-        .invoke_handler(tauri::generate_handler![khoi_dong_khoa, kiem_tra_ma, kiem_tra_tep, lay_ket_qua_kiem_tra, lo_nap, them_don_vi, sua_don_vi, xoa_don_vi, lay_bearer, lay_nguoi, chon_excel, chon_ho_so, xoa_dem, xoa_du_lieu, dang_nhap, dat_cookie, dat_nguoi, lay_trang_thai, kiem_tra_ket_noi_tat_ca, chuan_bi, gui, gui_lai, gui_tat_ca])
+        .invoke_handler(tauri::generate_handler![khoi_dong_khoa, khoi_tao_lo_trong, kiem_tra_ma, kiem_tra_tep, lay_ket_qua_kiem_tra, lo_nap, them_don_vi, sua_don_vi, xoa_don_vi, lay_bearer, lay_nguoi, chon_excel, chon_ho_so, xoa_dem, tong_quan, gui_buoc_8, xoa_du_lieu, dang_nhap, dat_cookie, dat_nguoi, lay_trang_thai, kiem_tra_ket_noi_tat_ca, tq_lay_cay, tq_tao, tq_xuat_excel, chuan_bi, chuan_bi_tat_ca, gui, gui_lai, gui_tat_ca])
         .run(tauri::generate_context!())
         .expect("error");
 }

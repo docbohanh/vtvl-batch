@@ -80,3 +80,15 @@ export interface KetQuaKiemTraTep {
   quyTac: { phienBan?: string };
   ketQua: { tong_dong: number; dong_loi: number; dong_hop_le: number; loi: LoiKiemTra[]; sheets: SheetKiemTra[] };
 }
+
+/** Nút của cây đơn vị trên cổng (chọn đơn vị cha khi tạo tài khoản). */
+export interface NutCay { id: string; ma: string; ten: string; chaId: string | null }
+export interface CayDonVi { nut: NutCay[]; tenDangNhap: string[] }
+export interface YeuCauTao { chaId: string; ten: string; ma: string; tenDangNhap: string }
+export interface KetQuaTao { orgId: string; ma: string; donViMoi: boolean; tenDangNhap: string; matKhau: string; donVi: DonVi[] | null }
+export interface DongBaoCao { ten: string; taiKhoan: string; matKhau: string }
+
+/** Màn hình "Tổng quan" của một đơn vị (số liệu như trang làm việc của ứng dụng Desktop). */
+export interface KpiTongQuan { khoa: string; nhan: string; giaTri: number | string | null; donVi: string; chuaKiemChung: number | string | null }
+export interface BuocTongQuan { buoc: number; tieuDe: string; xong: number; dangLam: number; chuaBatDau: number }
+export interface TongQuan { chao: string; donVi: string; ky: string; kpis: KpiTongQuan[]; buoc: BuocTongQuan[]; capNhat: string }

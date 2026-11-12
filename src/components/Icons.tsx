@@ -34,3 +34,5 @@ export const IcMoTatCa = (p: SVGProps<SVGSVGElement>) => <Icon {...p}><path d="m
 export const IcThuTatCa = (p: SVGProps<SVGSVGElement>) => <Icon {...p}><path d="m7 20 5-5 5 5" /><path d="m7 4 5 5 5-5" /></Icon>;
 export const IcDong = (p: SVGProps<SVGSVGElement>) => <Icon {...p}><path d="M18 6 6 18" /><path d="m6 6 12 12" /></Icon>;
 export const IcKiemTra = (p: SVGProps<SVGSVGElement>) => <Icon {...p}><path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" /></Icon>;
+export const IcLichSu = (p: SVGProps<SVGSVGElement>) => <Icon {...p}><path d="M3 12a9 9 0 1 0 3-6.7L3 8" /><path d="M3 3v5h5" /><path d="M12 7v5l4 2" /></Icon>;
+export const IcTongQuan = (p: SVGProps<SVGSVGElement>) => <Icon {...p}><rect x="3" y="3" width="7" height="9" rx="1" /><rect x="14" y="3" width="7" height="5" rx="1" /><rect x="14" y="12" width="7" height="9" rx="1" /><rect x="3" y="16" width="7" height="5" rx="1" /></Icon>;

@@ -17,7 +17,6 @@ use std::time::Duration;
 
 const CO_TRANG: usize = 500;
 const SO_TRANG_TOI_DA: usize = 400;
-pub const CHUOI_XAC_NHAN: &str = "XOA TOAN BO";
 
 pub struct BieuXoa {
     pub khoa: &'static str,
@@ -129,6 +128,8 @@ pub async fn dem_dong(sess: &Session, sid: &str, bieu: &[&BieuXoa], nghi: Durati
         match doc_het_dong(sess, sid, b.khoa, nghi).await {
             Ok(r) => out.push(DongDem { khoa: b.khoa.into(), ten: b.ten.into(), so_dong: Some(r.len()), loi: None }),
             Err(e) if loi_quyen(&e) => return Err(dien_giai_loi_quyen(&e)),
+            // vẫn bị giới hạn tần suất sau các lần thử lại: các biểu sau cũng sẽ lỗi, dừng và báo một lần
+            Err(e) if e.contains("lỗi 429") => return Err(format!("{e} (đã đếm {}/{} biểu; chờ 1–2 phút rồi bấm Xem trước lại)", out.len(), bieu.len())),
             Err(e) => out.push(DongDem { khoa: b.khoa.into(), ten: b.ten.into(), so_dong: None, loi: Some(e) }),
         }
         tokio::time::sleep(nghi).await;

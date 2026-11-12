@@ -3,8 +3,10 @@ import { api, loiThanhChuoi } from './api';
 import logoCo from './assets/logo-co.png';
 import { CongMatKhau } from './components/CongMatKhau';
 import { ChonCauHinh, chonTepCauHinh } from './components/ChonCauHinh';
-import { IcGui, IcKetNoi, IcMoTatCa, IcNguoi, IcThem, IcThuMuc, IcThuTatCa, IcTim } from './components/Icons';
+import { IcGui, IcKetNoi, IcKiemTra, IcMoTatCa, IcNguoi, IcThem, IcThuMuc, IcThuTatCa, IcTim } from './components/Icons';
+import { docLichSu, ghiLichSu, themLichSu, xoaMucLichSu, type MucLichSu } from './lichSuLo';
 import { ThemDonViDialog } from './components/ThemDonViDialog';
+import { TaoTaiKhoanDialog } from './components/TaoTaiKhoanDialog';
 import { DIEU_KIEN, NHAN_LOC, type LocTrangThai } from './loc';
 import { Tong } from './components/Tong';
 import { UnitCard } from './components/UnitCard';
@@ -28,6 +30,7 @@ function nhoDuongDan(p: string): void {
 export default function App() {
   const [daMo, setDaMo] = useState(false); // đã qua cổng mật khẩu khởi động
   const [duongDan, setDuongDan] = useState(docDuongDanCu);
+  const [daNapLo, setDaNapLo] = useState(false); // đã nạp được một lô (kể cả lô trống chưa có đơn vị)
   const [nguoi, setNguoi] = useState('');
   const [don, setDon] = useState<DonVi[]>([]);
   const [dangBan, setDangBan] = useState<ReadonlySet<string>>(new Set());
@@ -35,6 +38,8 @@ export default function App() {
   const [thongBao, setThongBao] = useState<string | null>(null);
   const [xacNhan, setXacNhan] = useState(false);
   const [moThem, setMoThem] = useState(false);
+  const [lichSu, setLichSu] = useState<MucLichSu[]>(docLichSu);
+  const [moTaoTk, setMoTaoTk] = useState(false);
   const [tim, setTim] = useState('');
   const [dangMo, setDangMo] = useState<ReadonlySet<string>>(new Set()); // đơn vị đang mở rộng; mặc định (kể cả đơn vị mới thêm) là thu gọn
   const [loc, setLoc] = useState<LocTrangThai | null>(null);
@@ -81,19 +86,36 @@ export default function App() {
 
   const napLo = useCallback(async (p: string) => {
     setThongBao(null);
-    try { setDon(await api.nap(p)); nhoDuongDan(p); setNguoi(await api.layNguoi()); } catch (e) { setThongBao(loiThanhChuoi(e)); }
+    try {
+      const ds = await api.nap(p);
+      setDon(ds);
+      setDaNapLo(true);
+      nhoDuongDan(p);
+      setLichSu((cu) => { const moi = themLichSu(cu, { duongDan: p, luc: new Date().toISOString(), soDonVi: ds.length }); ghiLichSu(moi); return moi; });
+      setNguoi(await api.layNguoi());
+    } catch (e) { setThongBao(loiThanhChuoi(e)); }
   }, []);
+
+  const capNhatLichSu = (moi: MucLichSu[]) => { setLichSu(moi); ghiLichSu(moi); };
 
   useEffect(() => {
     if (!daMo) return;
     const cu = docDuongDanCu();
-    if (cu) void napLo(cu); // mở lại ứng dụng: nạp ngay tệp đã chọn lần trước
+    if (cu) { void napLo(cu); return; } // mở lại ứng dụng: nạp ngay tệp đã chọn lần trước
+    // lần đầu mở (chưa có lô JSON): tự tạo một lô trống để người dùng thêm đơn vị bằng tay
+    void api.khoiTaoLoTrong().then((p) => { setDuongDan(p); return napLo(p); }).catch((e) => setThongBao(loiThanhChuoi(e)));
   }, [napLo, daMo]);
 
   async function kiemTraTatCa() {
     setToanCuc(true);
     setThongBao(null);
     try { setDon(await api.kiemTraKetNoiTatCa()); } catch (e) { setThongBao(loiThanhChuoi(e)); } finally { setToanCuc(false); }
+  }
+
+  async function chuanBiTatCa() {
+    setToanCuc(true);
+    setThongBao(null);
+    try { setDon(await api.chuanBiTatCa()); } catch (e) { setThongBao(loiThanhChuoi(e)); } finally { setToanCuc(false); }
   }
 
   async function guiTatCa() {
@@ -127,7 +149,7 @@ export default function App() {
         </header>
 
         <section className="bang-dieu-khien" aria-label="Điều khiển lô">
-          <ChonCauHinh duongDan={duongDan} dangBan={bao} onChon={(p) => { setDuongDan(p); void napLo(p); }} onNapLai={() => { void napLo(duongDan); }} />
+          <ChonCauHinh duongDan={duongDan} dangBan={bao} onChon={(p) => { setDuongDan(p); void napLo(p); }} onNapLai={() => { void napLo(duongDan); }} lichSu={lichSu} onChonLichSu={(p) => { setDuongDan(p); void napLo(p); }} onXoaLichSu={(p) => capNhatLichSu(xoaMucLichSu(lichSu, p))} onXoaHetLichSu={() => capNhatLichSu([])} />
           {don.length > 0 && (
             <label className="tim-kiem">
               <IcTim aria-hidden="true" />
@@ -135,26 +157,33 @@ export default function App() {
               {(tim || loc) && <span className="tim-kiem__dem">{hienThi.length}/{don.length}</span>}
             </label>
           )}
-          {don.length > 0 && (
-            <button type="button" className="nut" onClick={() => setDangMo(tatCaDong ? new Set(don.map((d) => d.username)) : new Set())} title={tatCaDong ? 'Mở rộng tất cả thẻ đơn vị' : 'Thu gọn tất cả thẻ đơn vị, chỉ giữ phần đầu'}>
-              {tatCaDong ? <IcMoTatCa /> : <IcThuTatCa />} {tatCaDong ? 'Mở rộng tất cả' : 'Thu gọn tất cả'}
-            </button>
-          )}
           <div className="hanh-dong-chinh">
-            <button type="button" className="nut" onClick={() => setMoThem(true)} disabled={bao} title={don.length === 0 ? 'Chọn tệp JSON của lô trước' : 'Thêm đơn vị vào tệp JSON của lô'}><IcThem /> Thêm đơn vị</button>
-            <button type="button" className="nut" onClick={() => { void kiemTraTatCa(); }} disabled={bao || bat.length === 0}>
-              {toanCuc ? <span className="quay" aria-hidden="true" /> : <IcKetNoi />} Kiểm tra kết nối tất cả
-            </button>
-            <button type="button" className="nut nut--cta" onClick={() => setXacNhan(true)} disabled={bao || !daKiemTraKetNoi || sanSang.length === 0 || !nguoi.trim()} title={!daKiemTraKetNoi ? 'Kiểm tra kết nối tất cả trước' : !nguoi.trim() ? 'Nhập tên người vận hành' : undefined}>
-              <IcGui /> Gửi tất cả <span className="dem">{sanSang.length}</span>
-            </button>
+            <div className="nhom-nut" role="group" aria-label="Xem và thêm đơn vị">
+              <button type="button" className="nut nut--vuong" onClick={() => setDangMo(tatCaDong ? new Set(don.map((d) => d.username)) : new Set())} disabled={don.length === 0} title={tatCaDong ? 'Mở rộng tất cả thẻ đơn vị' : 'Thu gọn tất cả thẻ đơn vị, chỉ giữ phần đầu'} aria-label={tatCaDong ? 'Mở rộng tất cả thẻ đơn vị' : 'Thu gọn tất cả thẻ đơn vị'}>
+                {tatCaDong ? <IcMoTatCa /> : <IcThuTatCa />}
+              </button>
+              <button type="button" className="nut nut--vuong" onClick={() => setMoThem(true)} disabled={bao || !daNapLo} title={!daNapLo ? 'Chọn tệp JSON của lô trước' : 'Thêm đơn vị vào tệp JSON của lô'} aria-label="Thêm đơn vị"><IcThem /></button>
+            </div>
+            <span className="ngan-cach" aria-hidden="true" />
+            <div className="nhom-nut" role="group" aria-label="Quy trình gửi hồ sơ">
+              <button type="button" className="nut" onClick={() => setMoTaoTk(true)} disabled={bao || !daNapLo} title="Tạo đơn vị con và tài khoản kê khai trên cổng (bằng tài khoản quản trị)"><IcNguoi /> Tạo tài khoản</button>
+              <button type="button" className="nut" onClick={() => { void kiemTraTatCa(); }} disabled={bao || bat.length === 0} title="Kiểm tra kết nối tất cả đơn vị đang bật">
+                {toanCuc ? <span className="quay" aria-hidden="true" /> : <IcKetNoi />} Kiểm tra kết nối
+              </button>
+              <button type="button" className="nut" onClick={() => { void chuanBiTatCa(); }} disabled={bao || bat.length === 0} title="Chuẩn bị tất cả đơn vị đang bật: kiểm tra tệp Excel và tính thay đổi (không gửi gì)">
+                <IcKiemTra /> Chuẩn bị
+              </button>
+              <button type="button" className="nut nut--cta" onClick={() => setXacNhan(true)} disabled={bao || !daKiemTraKetNoi || sanSang.length === 0 || !nguoi.trim()} title={!daKiemTraKetNoi ? 'Kiểm tra kết nối tất cả trước' : !nguoi.trim() ? 'Nhập tên người vận hành' : undefined}>
+                <IcGui /> Gửi tất cả <span className="dem">{sanSang.length}</span>
+              </button>
+            </div>
           </div>
         </section>
       </div>
 
       {thongBao && <p className="thong-bao thong-bao--loi" role="alert">{thongBao}</p>}
 
-      {don.length === 0 ? (
+      {!daNapLo ? (
         <section className="rong" aria-labelledby="rong-tieu-de">
           <span className="rong__icon" aria-hidden="true"><IcThuMuc /></span>
           <h2 id="rong-tieu-de">Chưa nạp lô đơn vị</h2>
@@ -166,6 +195,13 @@ export default function App() {
             <li><b>4</b> Gửi tất cả hoặc gửi từng đơn vị</li>
           </ol>
           <button type="button" className="nut nut--chinh" onClick={() => { void chonTepCauHinh().then((p) => { if (p) { setDuongDan(p); void napLo(p); } }); }}><IcThuMuc /> Chọn tệp JSON…</button>
+        </section>
+      ) : don.length === 0 ? (
+        <section className="rong" aria-labelledby="rong-trong-tieu-de">
+          <span className="rong__icon" aria-hidden="true"><IcThem /></span>
+          <h2 id="rong-trong-tieu-de">Lô chưa có đơn vị nào</h2>
+          <p>Thêm đơn vị bằng tay, mỗi đơn vị gồm tài khoản cổng, mật khẩu và tệp Excel bộ biểu. Danh sách được lưu trong <code>{duongDan}</code>.</p>
+          <button type="button" className="nut nut--chinh" onClick={() => setMoThem(true)} disabled={bao}><IcThem /> Thêm đơn vị</button>
         </section>
       ) : (
         <main className="danh-sach">
@@ -184,6 +220,7 @@ export default function App() {
               onChuanBi={() => { void chay(d.username, () => api.chuanBi(d.username)); }}
               onGui={() => { void chay(d.username, () => api.gui(d.username, d.trangThai.thayDoi?.tong ?? 0)); }}
               onGuiLai={() => { void chay(d.username, () => api.guiLai(d.username)); }}
+              onGuiBuoc8={() => { void chay(d.username, () => api.guiBuoc8(d.username)); }}
               onDonViDoi={setDon}
               moRong={dangMo.has(d.username)}
               onDoiMoRong={(mo) => doiMoRong(d.username, mo)}
@@ -192,7 +229,8 @@ export default function App() {
         </main>
       )}
 
-      <ThemDonViDialog open={moThem} daNapLo={duongDan !== '' && don.length > 0} onClose={() => setMoThem(false)} onXong={setDon} onCanhBao={setThongBao} />
+      <TaoTaiKhoanDialog open={moTaoTk} daNapLo={daNapLo} onClose={() => setMoTaoTk(false)} onXong={setDon} />
+      <ThemDonViDialog open={moThem} daNapLo={daNapLo} onClose={() => setMoThem(false)} onXong={setDon} onCanhBao={setThongBao} />
 
       <dialog ref={hopXacNhan} onClose={() => setXacNhan(false)} aria-labelledby="xn-tieu-de">
         <h2 id="xn-tieu-de">Gửi thay đổi lên cổng?</h2>

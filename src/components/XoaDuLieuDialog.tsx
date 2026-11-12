@@ -1,9 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, loiThanhChuoi } from '../api';
 import type { DonVi, DongDem, KetQuaXoa } from '../types';
 import { IcCanhBao, IcLamMoi, IcXoa } from './Icons';
-
-const CHUOI_XAC_NHAN = 'XOA TOAN BO';
+import { HET_HAN_MS, laLanBamThuHai } from '../haiBuoc';
 
 export interface XoaDuLieuDialogProps {
   don: DonVi;
@@ -12,39 +11,61 @@ export interface XoaDuLieuDialogProps {
   onClose: () => void;
 }
 
-/** Hộp thoại "Xóa dữ liệu cũ trên cổng" của một đơn vị: xem trước số dòng, gõ chuỗi xác nhận, xóa. Không hoàn tác được. */
+/** Hộp thoại "Xóa dữ liệu cũ trên cổng" của một đơn vị: xem trước số dòng, bấm xóa hai lần để xác nhận. Không hoàn tác được. */
 export function XoaDuLieuDialog({ don, nguoi, open, onClose }: XoaDuLieuDialogProps) {
   const ref = useRef<HTMLDialogElement>(null);
   const [xem, setXem] = useState<DongDem[] | null>(null);
   const [ketQua, setKetQua] = useState<KetQuaXoa[] | null>(null);
-  const [xacNhan, setXacNhan] = useState('');
+  const [sanSangLuc, setSanSangLuc] = useState<number | null>(null); // đã bấm lần một (thời điểm); lần hai mới xóa
+  const hetHan = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [dangDem, setDangDem] = useState(false);
   const [dangXoa, setDangXoa] = useState(false);
   const [loi, setLoi] = useState<string | null>(null);
+
+  const huyXacNhan = useCallback(() => {
+    if (hetHan.current) clearTimeout(hetHan.current);
+    hetHan.current = null;
+    setSanSangLuc(null);
+  }, []);
 
   useEffect(() => {
     const d = ref.current;
     if (!d) return;
     if (open && !d.open) {
-      setXem(null); setKetQua(null); setXacNhan(''); setLoi(null);
+      setXem(null); setKetQua(null); huyXacNhan(); setLoi(null);
       d.showModal();
     }
     if (!open && d.open) d.close();
-  }, [open]);
+  }, [open, huyXacNhan]);
+
+  useEffect(() => huyXacNhan, [huyXacNhan]); // dọn bộ đếm khi đóng thẻ
 
   const tk = don.taiKhoan;
   const tong = xem?.reduce((a, d) => a + (d.soDong ?? 0), 0) ?? 0;
   const bu = dangDem || dangXoa;
-  const duocXoa = !!xem && xacNhan.trim() === CHUOI_XAC_NHAN && !!nguoi.trim() && !bu && !ketQua;
+  const duocXoa = !!xem && !!nguoi.trim() && !bu && !ketQua;
 
   async function demDong() {
-    setDangDem(true); setLoi(null); setKetQua(null);
+    huyXacNhan(); setDangDem(true); setLoi(null); setKetQua(null);
     try { setXem(await api.xoaDem(don.username)); } catch (e) { setLoi(loiThanhChuoi(e)); setXem(null); } finally { setDangDem(false); }
+  }
+
+  /** Lần bấm đầu: chuyển nút sang "Bấm lần nữa để xóa" (tự hủy sau `HET_HAN_MS`); lần hai: xóa thật. */
+  function bamXoa() {
+    if (!laLanBamThuHai(sanSangLuc, Date.now())) {
+      if (sanSangLuc === null) {
+        setSanSangLuc(Date.now());
+        hetHan.current = setTimeout(huyXacNhan, HET_HAN_MS);
+      }
+      return;
+    }
+    huyXacNhan();
+    void xoa();
   }
 
   async function xoa() {
     setDangXoa(true); setLoi(null);
-    try { setKetQua(await api.xoaDuLieu(don.username, xacNhan.trim())); setXacNhan(''); } catch (e) { setLoi(loiThanhChuoi(e)); } finally { setDangXoa(false); }
+    try { setKetQua(await api.xoaDuLieu(don.username)); } catch (e) { setLoi(loiThanhChuoi(e)); } finally { setDangXoa(false); }
   }
 
   return (
@@ -80,8 +101,6 @@ export function XoaDuLieuDialog({ don, nguoi, open, onClose }: XoaDuLieuDialogPr
             </tbody>
             <tfoot><tr><th scope="row">Tổng</th><td className="so">{tong}</td></tr></tfoot>
           </table>
-          <label className="hop-xoa__xn" htmlFor={`xn-${don.username}`}>Gõ <b>{CHUOI_XAC_NHAN}</b> để xác nhận</label>
-          <input id={`xn-${don.username}`} value={xacNhan} onChange={(e) => setXacNhan(e.target.value)} placeholder={CHUOI_XAC_NHAN} autoComplete="off" spellCheck={false} />
         </>
       )}
 
@@ -106,7 +125,12 @@ export function XoaDuLieuDialog({ don, nguoi, open, onClose }: XoaDuLieuDialogPr
 
       <footer className="hop-xoa__chan">
         <button type="button" className="nut" onClick={onClose}>{ketQua ? 'Đóng' : 'Hủy'}</button>
-        {!ketQua && <button type="button" className="nut nut--nguy" onClick={() => { void xoa(); }} disabled={!duocXoa}>{dangXoa ? <span className="quay" aria-hidden="true" /> : <IcXoa />} Xóa toàn bộ dữ liệu</button>}
+        {!ketQua && sanSangLuc !== null && <span className="hop-xoa__nhac" role="status">Bấm lần nữa trong {HET_HAN_MS / 1000} giây để xóa. Không hoàn tác được.</span>}
+        {!ketQua && (
+          <button type="button" className={`nut nut--nguy${sanSangLuc !== null ? ' nut--san-sang' : ''}`} onClick={bamXoa} disabled={!duocXoa} title={!xem ? 'Bấm Xem trước số dòng trước' : !nguoi.trim() ? 'Nhập tên người vận hành ở đầu trang' : undefined}>
+            {dangXoa ? <span className="quay" aria-hidden="true" /> : <IcXoa />} {sanSangLuc !== null ? 'Bấm lần nữa để xóa' : 'Xóa toàn bộ dữ liệu'}
+          </button>
+        )}
       </footer>
     </dialog>
   );
