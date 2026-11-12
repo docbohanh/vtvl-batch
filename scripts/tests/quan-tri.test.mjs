@@ -109,3 +109,29 @@ test('cấu hình thẩm định: B1 sắp xếp/lọc cột D và ước tính 
   assert.deepEqual(CAU_HINH_BIEU.d2.tong.loaiTru, ['B']);
   assert.equal(CAU_HINH_BIEU.d2.locNam.cot, 'B');
 });
+
+import { soSanhNguoi } from '../../src/quanTri.ts';
+
+test('so sánh B1 với C3: ước tính theo giờ ÷ 1904, so với tổng người cần bố trí', () => {
+  const b1 = [dg(1, { G: '1904' }), dg(2, { G: 952 }), dg(3, { G: null })];
+  const c3 = [dg(1, { J: '1' }), dg(2, { J: '0,5' })];
+  const r = soSanhNguoi(b1, c3);
+  assert.equal(r.gioB1, 2856);
+  assert.equal(r.nguoiB1, 1.5);
+  assert.equal(r.nguoiC3, 1.5);
+  assert.equal(r.chenh, 0);
+  assert.equal(r.tyLe, 1);
+  assert.equal(r.muc, 'khop');
+});
+
+test('so sánh: lệch quá 10% thì "lech", đúng ngưỡng 10% vẫn khớp, C3 bằng 0 thì không có tỷ lệ', () => {
+  const c3 = [dg(1, { J: '10' })];
+  assert.equal(soSanhNguoi([dg(1, { G: 11 * 1904 })], c3).muc, 'khop');
+  const lech = soSanhNguoi([dg(1, { G: 12 * 1904 })], c3);
+  assert.equal(lech.muc, 'lech');
+  assert.equal(lech.chenh, 2);
+  assert.equal(soSanhNguoi([dg(1, { G: 8 * 1904 })], c3).chenh, -2);
+  const khong = soSanhNguoi([dg(1, { G: 1904 })], []);
+  assert.equal(khong.tyLe, null);
+  assert.equal(khong.muc, null);
+});

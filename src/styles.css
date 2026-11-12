@@ -504,7 +504,7 @@ dialog .phu { color: var(--chu-phu); font-size: 0.84rem; }
 .hsqt { flex: 1; min-height: 0; min-width: 0; display: flex; flex-direction: column; gap: 10px; }
 .hsqt > * { flex: none; }
 .hsqt__nut { display: flex; gap: 8px; flex: none; }
-.hsqt__dau { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; padding: 14px 16px; background: var(--be-mat); border: 1px solid var(--vien); border-radius: var(--ban-kinh); box-shadow: var(--bong); }
+.hsqt__dau { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: 12px; padding: 14px 16px; background: var(--be-mat); border: 1px solid var(--vien); border-radius: var(--ban-kinh); box-shadow: var(--bong); }
 .hsqt__dau h2 { font-size: 1.1rem; line-height: 1.3; margin-bottom: 4px; }
 .hsqt__phu { color: var(--chu-phu); font-size: 0.82rem; display: flex; flex-wrap: wrap; gap: 4px 6px; align-items: center; }
 .hsqt__trang { display: flex; align-items: center; gap: 8px; padding: 18px; color: var(--chu-phu); }
@@ -578,3 +578,23 @@ dialog .phu { color: var(--chu-phu); font-size: 0.84rem; }
 .bb__uoc-tinh b { color: var(--chu); font-variant-numeric: tabular-nums; }
 .bb__uoc-tinh .bb__nguoi { font-size: 1rem; color: var(--chu-y); }
 .hop-don-vi { width: min(1080px, 94vw); }
+
+/* so sánh số người B1 ↔ C3 ở đầu hồ sơ */
+.ss { flex: 1 0 100%; display: flex; align-items: stretch; gap: 16px; flex-wrap: wrap; padding: 8px 12px; background: var(--be-mat-2); border: 1px solid var(--vien); border-radius: 8px; }
+.ss--khop { background: var(--tot-nen); border-color: color-mix(in srgb, var(--tot) 40%, transparent); }
+.ss--lech { background: var(--chu-y-nen); border-color: color-mix(in srgb, var(--cta) 55%, transparent); }
+.ss--cho { display: flex; align-items: center; gap: 8px; color: var(--chu-phu); font-size: 0.82rem; }
+.ss__tieu-de { align-self: center; font-size: 0.68rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--chu-phu); }
+.ss__so { display: flex; gap: 24px; flex-wrap: wrap; margin: 0; flex: 1; }
+.ss__so > div { display: grid; gap: 2px; min-width: 150px; }
+.ss__so dt { font-size: 0.72rem; font-weight: 600; color: var(--chu-phu); }
+.ss__so dd { margin: 0; font-size: 1.15rem; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--chu); }
+.ss__so dd small { font-size: 0.72rem; font-weight: 500; color: var(--chu-phu); }
+.ss__thanh { display: block; height: 6px; border-radius: 3px; background: var(--vien); overflow: hidden; }
+.ss__thanh i { display: block; height: 100%; border-radius: 3px; }
+.ss__thanh--b1 { background: var(--chinh); }
+.ss__thanh--c3 { background: var(--cta); }
+.ss__chenh { color: var(--chu); }
+.ss--lech .ss__chenh { color: var(--chu-y); }
+.ss--khop .ss__chenh { color: var(--tot); }
+.ss__ket-luan { font-size: 0.78rem; font-weight: 600; color: var(--chu-phu); }

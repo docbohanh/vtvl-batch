@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { api, loiThanhChuoi } from '../api';
 import { dinhDangCapNhat } from '../tongQuan';
-import { KHOA_UU_TIEN, nhanBieu, sapTab } from '../quanTri';
+import { dinhDangTong, GIO_MOT_NGUOI_NAM, KHOA_UU_TIEN, nhanBieu, NGUONG_LECH_KHOP, sapTab, soSanhNguoi } from '../quanTri';
 import type { DuLieuBieuQt, HoSoQt, TomTatBieuQt } from '../types';
 import { BangBieu } from './BangBieu';
 import { IcCanhBao, IcLamMoi, IcNguoi } from './Icons';
@@ -44,9 +44,12 @@ export function HoSoQuanTri({ hoSo, onQuanTri }: HoSoQuanTriProps) {
       .catch((e) => { if (lan === lanTai.current) setLoiBieu(loiThanhChuoi(e)); });
   }, [hoSo.id]);
 
-  // mở tab nào thì đọc biểu đó (một lần)
+  // đọc biểu của tab đang mở, cùng B1 và C3 (để đầu trang so sánh số người) — mỗi biểu một lần
   useEffect(() => {
-    if (bieu && bieu.some((b) => b.khoa === tab) && !da[tab]) void taiBieu(tab);
+    if (!bieu) return;
+    for (const k of new Set([tab, 'b1', 'c3'])) {
+      if (bieu.some((b) => b.khoa === k) && !da[k]) void taiBieu(k);
+    }
   }, [bieu, tab, da, taiBieu]);
 
   const { uuTien, khac } = bieu ? sapTab(bieu) : { uuTien: [], khac: [] };
@@ -71,6 +74,9 @@ export function HoSoQuanTri({ hoSo, onQuanTri }: HoSoQuanTriProps) {
     </button>
   );
   const hienTai = da[tab];
+  const b1 = da.b1;
+  const c3 = da.c3;
+  const soSanh = b1?.loai === 'xong' && c3?.loai === 'xong' ? soSanhNguoi(b1.du.dong, c3.du.dong) : null;
   const bieuChon = moi.find((b) => b.khoa === tab);
 
   return (
@@ -92,6 +98,7 @@ export function HoSoQuanTri({ hoSo, onQuanTri }: HoSoQuanTriProps) {
             <IcNguoi /> Quản trị
           </button>
         </div>
+        <SoSanhB1C3 soSanh={soSanh} dangTai={bieu !== null && (b1?.loai === 'dang_tai' || c3?.loai === 'dang_tai' || !b1 || !c3)} />
       </header>
 
       {loiBieu && <p className="thong-bao thong-bao--loi" role="alert"><IcCanhBao />{loiBieu}</p>}
@@ -114,5 +121,44 @@ export function HoSoQuanTri({ hoSo, onQuanTri }: HoSoQuanTriProps) {
         </>
       )}
     </section>
+  );
+}
+
+interface SoSanhB1C3Props {
+  soSanh: ReturnType<typeof soSanhNguoi> | null;
+  dangTai: boolean;
+}
+
+/** Dải so sánh trên đầu hồ sơ: số người ước tính từ B1 (tổng giờ ÷ 1.904) với tổng "Người cần bố trí" ở C3, trên toàn bộ dòng hai biểu. */
+function SoSanhB1C3({ soSanh, dangTai }: SoSanhB1C3Props) {
+  if (!soSanh) {
+    return <p className="ss ss--cho" role="status">{dangTai ? <><span className="quay" aria-hidden="true" /> Đang đọc B1 và C3 để so sánh số người…</> : 'Chưa so sánh được: không đọc được B1 hoặc C3 của hồ sơ này.'}</p>;
+  }
+  const { nguoiB1, nguoiC3, chenh, tyLe, muc, gioB1 } = soSanh;
+  const lonNhat = Math.max(nguoiB1, nguoiC3, 1e-9);
+  const dau = chenh > 0 ? '+' : chenh < 0 ? '−' : '';
+  const phanTram = tyLe === null ? null : Math.abs(tyLe - 1) * 100;
+  const ketLuan = muc === null ? 'C3 chưa có người cần bố trí' : muc === 'khop' ? `Khớp (lệch ≤ ${NGUONG_LECH_KHOP * 100}%)` : chenh > 0 ? `B1 cao hơn C3 ${dinhDangTong(phanTram ?? 0, 1)}%` : `B1 thấp hơn C3 ${dinhDangTong(phanTram ?? 0, 1)}%`;
+  return (
+    <div className={`ss${muc === 'khop' ? ' ss--khop' : muc === 'lech' ? ' ss--lech' : ''}`} role="group" aria-label="So sánh số người ước tính B1 với người cần bố trí C3">
+      <p className="ss__tieu-de">So sánh B1 ↔ C3</p>
+      <dl className="ss__so">
+        <div title={`Tổng giờ B1 (cột G) ${dinhDangTong(gioB1)} ÷ ${GIO_MOT_NGUOI_NAM.toLocaleString('vi-VN')}`}>
+          <dt>B1 ước tính</dt>
+          <dd>{dinhDangTong(nguoiB1)} <small>người</small></dd>
+          <span className="ss__thanh" aria-hidden="true"><i className="ss__thanh--b1" style={{ width: `${(nguoiB1 / lonNhat) * 100}%` }} /></span>
+        </div>
+        <div title="Tổng cột J (Người cần bố trí) của C3">
+          <dt>C3 cần bố trí</dt>
+          <dd>{dinhDangTong(nguoiC3)} <small>người</small></dd>
+          <span className="ss__thanh" aria-hidden="true"><i className="ss__thanh--c3" style={{ width: `${(nguoiC3 / lonNhat) * 100}%` }} /></span>
+        </div>
+        <div>
+          <dt>Chênh lệch (B1 − C3)</dt>
+          <dd className="ss__chenh">{dau}{dinhDangTong(Math.abs(chenh))} <small>người{tyLe !== null ? ` · B1/C3 = ${dinhDangTong(tyLe)}` : ''}</small></dd>
+          <span className="ss__ket-luan">{ketLuan}</span>
+        </div>
+      </dl>
+    </div>
   );
 }

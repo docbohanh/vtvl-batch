@@ -79,11 +79,13 @@ export interface CauHinhBieu {
   locNam?: { cot: string };
   /** Ước tính số người = tổng cột giờ ÷ 1.904. */
   soNguoi?: { cotGio: string };
+  /** Cột "Người cần bố trí" để cộng lại và so với ước tính của B1. */
+  nguoiCanBoTri?: { cot: string };
 }
 
 export const CAU_HINH_BIEU: Readonly<Record<string, CauHinhBieu>> = {
   b1: { sapXepLoc: { cot: 'D', nhan: 'Phút/SP (D)' }, soNguoi: { cotGio: 'G' } },
-  c3: { tong: { loaiTru: [] } },
+  c3: { tong: { loaiTru: [] }, nguoiCanBoTri: { cot: 'J' } },
   d2: { tong: { loaiTru: ['B'] }, locNam: { cot: 'B' } },
 };
 
@@ -131,3 +133,27 @@ export const gioSangNguoi = (gio: number): number => gio / GIO_MOT_NGUOI_NAM;
 
 /** Số kiểu Việt Nam, tối đa `soLe` chữ số thập phân. */
 export const dinhDangTong = (n: number, soLe = 2): string => n.toLocaleString('vi-VN', { maximumFractionDigits: soLe });
+
+/** Lệch giữa B1 và C3 trong khoảng này (±10%) thì coi là khớp; ngoài khoảng thì cần xem lại. Ngưỡng tham khảo, không phải quy định. */
+export const NGUONG_LECH_KHOP = 0.1;
+
+export interface SoSanhNguoi {
+  gioB1: number;
+  nguoiB1: number;
+  nguoiC3: number;
+  /** B1 − C3 (người); dương = B1 ước tính nhiều hơn C3 đề xuất. */
+  chenh: number;
+  /** B1 ÷ C3; null khi C3 không có người nào. */
+  tyLe: number | null;
+  muc: 'khop' | 'lech' | null;
+}
+
+/** So số người ước tính từ B1 (tổng giờ ÷ 1.904) với tổng "Người cần bố trí" của C3, trên toàn bộ dòng của hai biểu. */
+export function soSanhNguoi(b1: readonly DongQt[], c3: readonly DongQt[]): SoSanhNguoi {
+  const gioB1 = tongCot(b1, CAU_HINH_BIEU.b1.soNguoi?.cotGio ?? 'G');
+  const nguoiB1 = gioSangNguoi(gioB1);
+  const nguoiC3 = tongCot(c3, CAU_HINH_BIEU.c3.nguoiCanBoTri?.cot ?? 'J');
+  const tyLe = nguoiC3 > 0 ? nguoiB1 / nguoiC3 : null;
+  const muc = tyLe === null ? null : Math.abs(tyLe - 1) <= NGUONG_LECH_KHOP + 1e-9 ? 'khop' : 'lech';
+  return { gioB1, nguoiB1, nguoiC3, chenh: nguoiB1 - nguoiC3, tyLe, muc };
+}
