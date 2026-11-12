@@ -568,7 +568,13 @@ dialog .phu { color: var(--chu-phu); font-size: 0.84rem; }
 .bb__loc-so input { width: 110px; height: 32px; padding: 0 8px; }
 .bb__xoa { width: 24px; height: 24px; line-height: 1; font-size: 1rem; color: var(--chu-phu); background: var(--be-mat-2); border: 1px solid var(--vien-manh); border-radius: 50%; cursor: pointer; }
 .bb__xoa:hover { color: var(--xau); border-color: var(--xau); }
-.bb__nam { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.bb__nam { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; border: 0; margin: 0; padding: 0; min-inline-size: 0; }
+.bb__nam legend { float: left; padding: 0; margin-right: 6px; line-height: 28px; }
+.loc-hop { display: inline-flex; align-items: center; gap: 5px; height: 28px; padding: 0 10px; font: 500 0.76rem/1 var(--font); color: var(--chu-phu); background: var(--be-mat-2); border: 1px solid var(--vien); border-radius: 999px; cursor: pointer; transition: background-color var(--nhanh), border-color var(--nhanh), color var(--nhanh); }
+.loc-hop:hover { border-color: var(--chinh); color: var(--chu); }
+.loc-hop input { margin: 0; accent-color: var(--chinh); cursor: pointer; }
+.loc-hop--chon { color: var(--chinh); background: var(--chinh-nen); border-color: var(--chinh); font-weight: 600; }
+.loc-hop:focus-within { outline: 2px solid var(--chinh); outline-offset: 2px; }
 .bb__uoc-tinh { margin-left: auto; padding: 5px 12px; font-size: 0.84rem; color: var(--chu-phu); background: var(--chu-y-nen); border: 1px solid color-mix(in srgb, var(--cta) 55%, transparent); border-radius: 8px; white-space: nowrap; }
 .bb__uoc-tinh b { color: var(--chu); font-variant-numeric: tabular-nums; }
 .bb__uoc-tinh .bb__nguoi { font-size: 1rem; color: var(--chu-y); }

@@ -1,5 +1,5 @@
 import { memo, useDeferredValue, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { CAU_HINH_BIEU, cacNam, dinhDangTong, GIO_MOT_NGUOI_NAM, gioSangNguoi, hienGiaTri, locDong, locNam, locTuMuc, mauO, sapXepCot, soTuO, tongCot, type HuongSapXep } from '../quanTri';
+import { CAU_HINH_BIEU, cacNam, dinhDangTong, doiNam, GIO_MOT_NGUOI_NAM, gioSangNguoi, hienGiaTri, locDong, locNhieuNam, locTuMuc, namDeChon, mauO, sapXepCot, soTuO, tongCot, type HuongSapXep } from '../quanTri';
 import type { CotQt, DuLieuBieuQt } from '../types';
 import { IcCanhBao, IcTim } from './Icons';
 
@@ -20,18 +20,18 @@ export const BangBieu = memo(function BangBieu({ du }: BangBieuProps) {
   const [soHien, setSoHien] = useState(BUOC_HIEN);
   const [huong, setHuong] = useState<HuongSapXep | null>(null);
   const [nguong, setNguong] = useState('');
-  const [nam, setNam] = useState<number | null>(null);
+  const [namChon, setNamChon] = useState<readonly number[]>([]); // rỗng = tất cả các năm
   const timTre = useDeferredValue(tim);
   const nguongSo = nguong.trim() === '' ? null : soTuO(nguong);
 
-  const cacNamCo = useMemo(() => (ch.locNam ? cacNam(du.dong, ch.locNam.cot) : []), [du.dong, ch.locNam]);
+  const cacNamCo = useMemo(() => (ch.locNam ? namDeChon(cacNam(du.dong, ch.locNam.cot)) : []), [du.dong, ch.locNam]);
   const dong = useMemo(() => {
     let r = locDong(du.dong, timTre, chiLoi);
     if (ch.sapXepLoc && nguongSo !== null) r = locTuMuc(r, ch.sapXepLoc.cot, nguongSo);
-    if (ch.locNam) r = locNam(r, ch.locNam.cot, nam);
+    if (ch.locNam) r = locNhieuNam(r, ch.locNam.cot, namChon);
     if (ch.sapXepLoc && huong) r = sapXepCot(r, ch.sapXepLoc.cot, huong);
     return r;
-  }, [du.dong, timTre, chiLoi, ch.sapXepLoc, ch.locNam, nguongSo, nam, huong]);
+  }, [du.dong, timTre, chiLoi, ch.sapXepLoc, ch.locNam, nguongSo, namChon, huong]);
   const soDongCoVanDe = useMemo(() => du.dong.filter((d) => d.loi.length > 0 || d.trangThai !== 'OK').length, [du.dong]);
   const tongGio = ch.soNguoi ? tongCot(dong, ch.soNguoi.cotGio) : 0;
   const coTong = (c: CotQt) => !!ch.tong && KIEU_SO.includes(c.kieu) && !ch.tong.loaiTru.includes(c.chu);
@@ -78,13 +78,17 @@ export const BangBieu = memo(function BangBieu({ du }: BangBieuProps) {
           </label>
         )}
         {ch.locNam && cacNamCo.length > 0 && (
-          <div className="bb__nam" role="group" aria-label="Lọc theo năm">
-            <span className="bb__phu">Năm</span>
-            <button type="button" className={`loc-nut${nam === null ? ' loc-nut--chon' : ''}`} aria-pressed={nam === null} onClick={() => { setNam(null); setSoHien(BUOC_HIEN); }}>Tất cả</button>
+          <fieldset className="bb__nam" aria-label="Lọc theo năm">
+            <legend className="bb__phu">Năm</legend>
+            <label className={`loc-hop${namChon.length === 0 ? ' loc-hop--chon' : ''}`}>
+              <input type="checkbox" checked={namChon.length === 0} onChange={() => { setNamChon([]); setSoHien(BUOC_HIEN); }} />Tất cả
+            </label>
             {cacNamCo.map((n) => (
-              <button key={n} type="button" className={`loc-nut${nam === n ? ' loc-nut--chon' : ''}`} aria-pressed={nam === n} onClick={() => { setNam(n); setSoHien(BUOC_HIEN); }}>{n}</button>
+              <label key={n} className={`loc-hop${namChon.includes(n) ? ' loc-hop--chon' : ''}`}>
+                <input type="checkbox" checked={namChon.includes(n)} onChange={() => { setNamChon((cu) => doiNam(cu, n, cacNamCo)); setSoHien(BUOC_HIEN); }} />{n}
+              </label>
             ))}
-          </div>
+          </fieldset>
         )}
         {ch.soNguoi && (
           <p className="bb__uoc-tinh" role="status" title={`Ước tính = tổng giờ (cột ${ch.soNguoi.cotGio}) ÷ ${GIO_MOT_NGUOI_NAM}, tính trên các dòng đang hiện`}>
@@ -123,7 +127,7 @@ export const BangBieu = memo(function BangBieu({ du }: BangBieuProps) {
                   <th scope="row" className="bb__stt" title="Dòng tổng">Σ</th>
                   {cot.map((c) => (
                     <td key={c.chu} className={coTong(c) ? 'bb__so-tong' : ''}>
-                      {coTong(c) ? dinhDangTong(tongCot(dong, c.chu)) : c.chu === nhanCotDau ? <span>Tổng · {dong.length} dòng{nam !== null ? ` · năm ${nam}` : ''}</span> : ''}
+                      {coTong(c) ? dinhDangTong(tongCot(dong, c.chu)) : c.chu === nhanCotDau ? <span>Tổng · {dong.length} dòng{namChon.length > 0 ? ` · năm ${namChon.join(', ')}` : ''}</span> : ''}
                     </td>
                   ))}
                 </tr>

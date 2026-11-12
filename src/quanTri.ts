@@ -129,6 +129,27 @@ export function locNam(dong: readonly DongQt[], cot: string, nam: number | null)
   return nam === null ? [...dong] : dong.filter((d) => soTuO(d.duLieu[cot]) === nam);
 }
 
+/** Các năm phương án biên chế của D2 (2027 – 2031); luôn hiện đủ để tích chọn dù hồ sơ chưa có dòng của năm đó. */
+export const CAC_NAM_D2: readonly number[] = [2027, 2028, 2029, 2030, 2031];
+
+/** Các năm để tích chọn: năm chuẩn của D2 gộp với năm thật sự có trong dữ liệu, tăng dần. */
+export function namDeChon(namCo: readonly number[]): number[] {
+  return [...new Set([...CAC_NAM_D2, ...namCo])].sort((a, b) => a - b);
+}
+
+/** Giữ dòng có năm thuộc `namChon`; danh sách rỗng nghĩa là tất cả các năm. */
+export function locNhieuNam(dong: readonly DongQt[], cot: string, namChon: readonly number[]): DongQt[] {
+  if (namChon.length === 0) return [...dong];
+  const co = new Set(namChon);
+  return dong.filter((d) => { const n = soTuO(d.duLieu[cot]); return n !== null && co.has(n); });
+}
+
+/** Bật/tắt một năm trong danh sách đã chọn (bất biến). Chọn đủ mọi năm thì quay về rỗng = tất cả. */
+export function doiNam(namChon: readonly number[], nam: number, tatCa: readonly number[]): number[] {
+  const moi = namChon.includes(nam) ? namChon.filter((n) => n !== nam) : [...namChon, nam].sort((a, b) => a - b);
+  return moi.length >= tatCa.length ? [] : moi;
+}
+
 export const gioSangNguoi = (gio: number): number => gio / GIO_MOT_NGUOI_NAM;
 
 /** Số kiểu Việt Nam, tối đa `soLe` chữ số thập phân. */

@@ -58,7 +58,7 @@ test('lọc dòng: chỉ dòng lỗi và tìm trong mọi ô', () => {
   assert.equal(boDau('Đà Nẵng'), 'da nang');
 });
 
-import { soTuO, locTuMuc, sapXepCot, tongCot, cacNam, locNam, gioSangNguoi, CAU_HINH_BIEU, GIO_MOT_NGUOI_NAM } from '../../src/quanTri.ts';
+import { soTuO, locTuMuc, sapXepCot, tongCot, cacNam, locNam, locNhieuNam, doiNam, namDeChon, CAC_NAM_D2, gioSangNguoi, CAU_HINH_BIEU, GIO_MOT_NGUOI_NAM } from '../../src/quanTri.ts';
 
 const dg = (so, duLieu) => ({ so, duLieu, trangThai: 'OK', loi: [], capNhat: '' });
 
@@ -186,4 +186,15 @@ test('tổ tiên của một đơn vị, gần nhất trước; đơn vị khôn
   assert.deepEqual(toTien(CAY, 't'), []);
   assert.deepEqual(toTien(CAY, 'khong-co'), []);
   assert.deepEqual(toTien([nut('a', 'A', 'b'), nut('b', 'B', 'a')], 'a'), ['b'], 'chặn vòng lặp');
+});
+
+test('lọc nhiều năm D2: rỗng là tất cả, chọn một hoặc nhiều năm, bật/tắt bất biến, đủ năm thì về tất cả', () => {
+  const d = [dg(1, { B: 2027 }), dg(2, { B: '2028' }), dg(3, { B: 2029 }), dg(4, { B: null })];
+  assert.equal(locNhieuNam(d, 'B', []).length, 4);
+  assert.deepEqual(locNhieuNam(d, 'B', [2027, 2029]).map((x) => x.so), [1, 3]);
+  assert.deepEqual(namDeChon([2026, 2028]), [2026, 2027, 2028, 2029, 2030, 2031]);
+  const goc = [2028]; const moi = doiNam(goc, 2027, CAC_NAM_D2);
+  assert.deepEqual(moi, [2027, 2028]); assert.deepEqual(goc, [2028], 'không sửa mảng gốc');
+  assert.deepEqual(doiNam([2027, 2028], 2028, CAC_NAM_D2), [2027]);
+  assert.deepEqual(doiNam([2027, 2028, 2029, 2030], 2031, CAC_NAM_D2), [], 'chọn đủ 5 năm thì thành tất cả');
 });
