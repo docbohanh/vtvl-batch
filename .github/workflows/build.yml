@@ -105,6 +105,8 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
         run: |
-          cua_so=$(find tep -type f \( -name '*.msi' -o -name '*-setup.exe' -o -name '*.dmg' -o -name 'vtvl-batch-di-kem.zip' \))
-          [ -n "$cua_so" ] || { echo "::error::Không có tệp nào để đính kèm"; exit 1; }
-          gh release create "$GITHUB_REF_NAME" $cua_so --title "VTVL Batch $GITHUB_REF_NAME" --generate-notes
+          # Tên tệp cài đặt có dấu cách ("VTVL Batch_x.y.z_x64-setup.exe"): đọc vào mảng theo ký tự NUL, không để shell tách từ.
+          mapfile -d '' cua_so < <(find tep -type f \( -name '*.msi' -o -name '*-setup.exe' -o -name '*.dmg' -o -name 'vtvl-batch-di-kem.zip' \) -print0)
+          [ "${#cua_so[@]}" -gt 0 ] || { echo "::error::Không có tệp nào để đính kèm"; exit 1; }
+          printf 'Đính kèm: %s\n' "${cua_so[@]}"
+          gh release create "$GITHUB_REF_NAME" "${cua_so[@]}" --title "VTVL Batch $GITHUB_REF_NAME" --generate-notes
