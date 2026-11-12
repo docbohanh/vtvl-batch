@@ -616,3 +616,10 @@ button.cay__mui:hover { color: var(--chinh); background: var(--chinh-nen); }
 .cay__so { display: flex; align-items: center; gap: 6px; }
 .cay__dem { min-width: 22px; padding: 0 6px; text-align: center; font-size: 0.7rem; font-weight: 700; color: var(--chinh); background: var(--chinh-nen); border-radius: 999px; }
 @media (prefers-reduced-motion: reduce) { .cay__hang, .cay__mui svg { transition: none; } }
+
+/* tài khoản quản trị ở thanh trên */
+.tk-qt { display: grid; gap: 4px; }
+.tk-qt__nut { height: 38px; justify-content: space-between; gap: 12px; min-width: 200px; }
+.tk-qt__nut b { font-weight: 600; max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
+.tk-qt__chua { color: var(--chu-y); font-weight: 600; }
+.tk-qt__doi { font-size: 0.76rem; color: var(--chinh); font-weight: 600; }

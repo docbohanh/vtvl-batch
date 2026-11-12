@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import type { KetQuaKiemTraTep, KetQuaMa, SuaDonVi, TinhTrangKhoa, ThemDonVi, DonVi, DongDem, KetQuaGui, KetQuaXoa, CayDonVi, YeuCauTao, KetQuaTao, DongBaoCao, TongQuan, DanhSachQt, TomTatBieuQt, DuLieuBieuQt } from './types';
+import type { KetQuaKiemTraTep, KetQuaMa, SuaDonVi, TinhTrangKhoa, ThemDonVi, DonVi, DongDem, KetQuaGui, KetQuaXoa, CayDonVi, YeuCauTao, KetQuaTao, DongBaoCao, TongQuan, DanhSachQt, TomTatBieuQt, DuLieuBieuQt, TinhTrangTaiKhoanQt } from './types';
 
 /** Lời gọi tới các lệnh Tauri (`src-tauri/src/main.rs`). Lỗi trả về là chuỗi tiếng Việt từ phía Rust. */
 export const api = {
@@ -27,6 +27,8 @@ export const api = {
   tqLayCay: () => invoke<CayDonVi>('tq_lay_cay'),
   tqTao: (yeuCau: YeuCauTao, themVaoLo: boolean) => invoke<KetQuaTao>('tq_tao', { yeuCau, themVaoLo }),
   tqXuatExcel: (hang: DongBaoCao[], tenTep: string) => invoke<string>('tq_xuat_excel', { hang, tenTep }),
+  qtTaiKhoan: () => invoke<TinhTrangTaiKhoanQt>('qt_tai_khoan'),
+  qtDatTaiKhoan: (tenDangNhap: string, matKhau: string) => invoke<TinhTrangTaiKhoanQt>('qt_dat_tai_khoan', { tenDangNhap, matKhau }),
   qtDanhSach: (lamMoi: boolean) => invoke<DanhSachQt>('qt_danh_sach', { lamMoi }),
   qtChiTiet: (idHoSo: string) => invoke<TomTatBieuQt[]>('qt_chi_tiet', { idHoSo }),
   qtBieu: (idHoSo: string, khoa: string) => invoke<DuLieuBieuQt>('qt_bieu', { idHoSo, khoa }),

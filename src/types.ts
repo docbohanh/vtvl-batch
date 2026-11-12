@@ -107,3 +107,6 @@ export interface DanhSachQt { quetLuc: string; ky: KyQt; taiKhoan: TaiKhoanQt[];
 export interface TomTatBieuQt { khoa: string; ma: string; tieuDe: string; buoc: number; soDong: number; trangThai: string; dongChuaDat: number }
 export interface DongQt { so: number; duLieu: Record<string, unknown>; trangThai: string; loi: string[]; capNhat: string }
 export interface DuLieuBieuQt { bieu: BieuQt; trangThai: string; tong: number; dongDat: number; dongChuaDat: number; canhBao: number; dong: DongQt[]; biCat: boolean }
+
+/** Tài khoản quản trị đang dùng (không bao giờ kèm mật khẩu). `nguon`: thiết lập trong ứng dụng, hoặc lấy từ tệp JSON của lô; null = chưa có. */
+export interface TinhTrangTaiKhoanQt { tenDangNhap: string; nguon: 'ung_dung' | 'lo' | null }

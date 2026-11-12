@@ -539,13 +539,18 @@ async fn kiem_tra_ket_noi_tat_ca(state: State<'_, AppState>) -> Result<Vec<DonVi
 // Tạo tài khoản (đơn vị con + tài khoản kê khai) bằng tài khoản quản trị
 // ---------------------------------------------------------------------------
 
-async fn mo_phien_quan_tri(lo: &Lo) -> Result<Session, String> {
-    let qt = lo.cfg.settings.tai_khoan_quan_tri.as_ref().filter(|q| !q.username.is_empty() && !q.password.is_empty())
-        .ok_or("Chưa cấu hình settings.taiKhoanQuanTri (username, password) trong tệp JSON của lô")?;
+/// Mở phiên bằng một tài khoản quản trị cụ thể (kênh Desktop).
+async fn mo_phien_voi(lo: &Lo, qt: &tao_tai_khoan::TaiKhoanQuanTri) -> Result<Session, String> {
     let tb = thiet_bi_ung_dung(lo)?;
     let dn = DangNhap::Desktop { username: &qt.username, password: &qt.password, thiet_bi: &tb };
     portal::mo_phien(&lo.cfg.base_url, &dn, Duration::from_secs(lo.cfg.settings.timeout_sec)).await
         .map_err(|e| format!("Đăng nhập tài khoản quản trị {} thất bại: {e}", qt.username))
+}
+
+/// Phiên quản trị theo tài khoản đang dùng (thiết lập trong ứng dụng, hoặc `settings.taiKhoanQuanTri` của lô).
+async fn mo_phien_quan_tri(lo: &Lo) -> Result<Session, String> {
+    let (qt, _) = quan_tri::tai_khoan_dang_dung(lo).ok_or("Chưa thiết lập tài khoản quản trị")?;
+    mo_phien_voi(lo, &qt).await
 }
 
 /// Cây đơn vị trên cổng và các tên đăng nhập đã có, để giao diện chọn đơn vị cha. Chỉ đọc.
@@ -1261,7 +1266,7 @@ fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .manage(AppState::default())
-        .invoke_handler(tauri::generate_handler![khoi_dong_khoa, khoi_tao_lo_trong, kiem_tra_ma, kiem_tra_tep, lay_ket_qua_kiem_tra, lo_nap, them_don_vi, sua_don_vi, xoa_don_vi, lay_bearer, lay_nguoi, chon_excel, chon_ho_so, xoa_dem, tong_quan, gui_buoc_8, xoa_du_lieu, dang_nhap, dat_cookie, dat_nguoi, lay_trang_thai, kiem_tra_ket_noi_tat_ca, tq_lay_cay, tq_tao, quan_tri::qt_danh_sach, quan_tri::qt_chi_tiet, quan_tri::qt_bieu, tq_xuat_excel, chuan_bi, chuan_bi_tat_ca, gui, gui_lai, gui_tat_ca])
+        .invoke_handler(tauri::generate_handler![khoi_dong_khoa, khoi_tao_lo_trong, kiem_tra_ma, kiem_tra_tep, lay_ket_qua_kiem_tra, lo_nap, them_don_vi, sua_don_vi, xoa_don_vi, lay_bearer, lay_nguoi, chon_excel, chon_ho_so, xoa_dem, tong_quan, gui_buoc_8, xoa_du_lieu, dang_nhap, dat_cookie, dat_nguoi, lay_trang_thai, kiem_tra_ket_noi_tat_ca, tq_lay_cay, tq_tao, quan_tri::qt_tai_khoan, quan_tri::qt_dat_tai_khoan, quan_tri::qt_danh_sach, quan_tri::qt_chi_tiet, quan_tri::qt_bieu, tq_xuat_excel, chuan_bi, chuan_bi_tat_ca, gui, gui_lai, gui_tat_ca])
         .run(tauri::generate_context!())
         .expect("error");
 }

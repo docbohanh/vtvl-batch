@@ -3,13 +3,12 @@ import { api, loiThanhChuoi } from './api';
 import logoCo from './assets/logo-co.png';
 import { DangNhapDonViDialog } from './components/DangNhapDonViDialog';
 import { CongMatKhau } from './components/CongMatKhau';
-import { ChonCauHinh } from './components/ChonCauHinh';
 import { HopDonVi } from './components/HopDonVi';
 import { IcNguoi } from './components/Icons';
+import { TaiKhoanQuanTri } from './components/TaiKhoanQuanTri';
 import { QuanTriPage } from './components/QuanTriPage';
 import { UnitCard } from './components/UnitCard';
-import { docLichSu, ghiLichSu, themLichSu, xoaMucLichSu, type MucLichSu } from './lichSuLo';
-import type { DonVi, HoSoQt } from './types';
+import type { DonVi, HoSoQt, TinhTrangTaiKhoanQt } from './types';
 import './styles.css';
 
 const CHU_KY_MS = 1000;
@@ -26,13 +25,14 @@ function nhoDuongDan(p: string): void {
 /** Nhánh admin: cả ứng dụng là trang Quản trị toàn màn hình. Lô đơn vị chỉ được nạp ngầm (lấy tài khoản quản trị và để mở thẻ đơn vị trong hộp thoại). */
 export default function App() {
   const [daMo, setDaMo] = useState(true); // NHÁNH ADMIN: tạm bỏ cổng mật khẩu khởi động (đặt false để bật lại; Rust: TAM_BO_MAT_KHAU_KHOI_DONG)
-  const [duongDan, setDuongDan] = useState(docDuongDanCu);
+  const [, setDuongDan] = useState(docDuongDanCu);
   const [daNapLo, setDaNapLo] = useState(false);
   const [nguoi, setNguoi] = useState('');
   const [don, setDon] = useState<DonVi[]>([]);
   const [dangBan, setDangBan] = useState<ReadonlySet<string>>(new Set());
   const [thongBao, setThongBao] = useState<string | null>(null);
-  const [lichSu, setLichSu] = useState<MucLichSu[]>(docLichSu);
+  const [tkQuanTri, setTkQuanTri] = useState<TinhTrangTaiKhoanQt | null>(null);
+  const [lanDoiTaiKhoan, setLanDoiTaiKhoan] = useState(0); // tăng mỗi lần thiết lập tài khoản quản trị mới: quét lại cây đơn vị
   const [donMo, setDonMo] = useState<string | null>(null); // tên đăng nhập của đơn vị đang mở trong hộp thoại
   const [hoSoHoiMk, setHoSoHoiMk] = useState<HoSoQt | null>(null); // hồ sơ của đơn vị chưa có trong lô: đang hỏi tài khoản + mật khẩu
 
@@ -62,12 +62,15 @@ export default function App() {
       setDon(ds);
       setDaNapLo(true);
       nhoDuongDan(p);
-      setLichSu((cu) => { const moi = themLichSu(cu, { duongDan: p, luc: new Date().toISOString(), soDonVi: ds.length }); ghiLichSu(moi); return moi; });
       setNguoi(await api.layNguoi());
     } catch (e) { setThongBao(loiThanhChuoi(e)); }
   }, []);
 
-  const capNhatLichSu = (moi: MucLichSu[]) => { setLichSu(moi); ghiLichSu(moi); };
+  // đọc tài khoản quản trị đang dùng khi đã có lô
+  useEffect(() => {
+    if (!daNapLo) return;
+    api.qtTaiKhoan().then(setTkQuanTri).catch((e) => setThongBao(loiThanhChuoi(e)));
+  }, [daNapLo]);
 
   useEffect(() => {
     if (!daMo) return;
@@ -105,7 +108,7 @@ export default function App() {
           </div>
         </div>
         <div className="thanh-tren__phai">
-          <ChonCauHinh duongDan={duongDan} dangBan={dangBan.size > 0} onChon={(p) => { setDuongDan(p); void napLo(p); }} onNapLai={() => { void napLo(duongDan); }} lichSu={lichSu} onChonLichSu={(p) => { setDuongDan(p); void napLo(p); }} onXoaLichSu={(p) => capNhatLichSu(xoaMucLichSu(lichSu, p))} onXoaHetLichSu={() => capNhatLichSu([])} />
+          <TaiKhoanQuanTri tinhTrang={tkQuanTri} onXong={(tt) => { setTkQuanTri(tt); setLanDoiTaiKhoan((n) => n + 1); }} />
           <label className="nguoi">
             <span className="nhan-truong"><IcNguoi /> Người vận hành</span>
             <input value={nguoi} onChange={(e) => { setNguoi(e.target.value); void api.datNguoi(e.target.value); }} placeholder="Họ và tên người xác nhận" autoComplete="name" />
@@ -115,7 +118,7 @@ export default function App() {
 
       {thongBao && <p className="thong-bao thong-bao--loi" role="alert">{thongBao}</p>}
 
-      <QuanTriPage daNapLo={daNapLo} onQuanTri={moDonVi} />
+      <QuanTriPage daNapLo={daNapLo} lanDoiTaiKhoan={lanDoiTaiKhoan} onQuanTri={moDonVi} />
       <DangNhapDonViDialog hoSo={hoSoHoiMk} onClose={() => setHoSoHoiMk(null)} onXacNhan={themDonViRoiMo} />
 
       <HopDonVi open={donChon !== undefined} tieuDe={donChon?.label || donChon?.username || ''} onClose={() => setDonMo(null)}>

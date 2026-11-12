@@ -11,12 +11,14 @@ const CAC_CHE_DO = Object.keys(NHAN_CHE_DO) as CheDoLoc[];
 
 export interface QuanTriPageProps {
   daNapLo: boolean;
+  /** Tăng khi vừa thiết lập tài khoản quản trị mới: bỏ cache và quét lại cây đơn vị. */
+  lanDoiTaiKhoan: number;
   /** Mở thẻ đơn vị của hồ sơ (nếu chưa có trong lô thì hỏi tài khoản và mật khẩu). */
   onQuanTri: (hoSo: HoSoQt) => void;
 }
 
 /** Trang quản trị (chỉ đọc): danh sách hồ sơ của kỳ hiện tại quét một lần từ cổng và lưu cache, bấm "Cập nhật" để quét lại; chọn một hồ sơ để xem từng biểu. */
-export function QuanTriPage({ daNapLo, onQuanTri }: QuanTriPageProps) {
+export function QuanTriPage({ daNapLo, lanDoiTaiKhoan, onQuanTri }: QuanTriPageProps) {
   const [ds, setDs] = useState<DanhSachQt | null>(null);
   const [dangQuet, setDangQuet] = useState(false);
   const [loi, setLoi] = useState<string | null>(null);
@@ -31,6 +33,7 @@ export function QuanTriPage({ daNapLo, onQuanTri }: QuanTriPageProps) {
   }, []);
 
   useEffect(() => { if (daNapLo) void tai(false); }, [daNapLo, tai]);
+  useEffect(() => { if (lanDoiTaiKhoan > 0) { setChon(null); void tai(true); } }, [lanDoiTaiKhoan, tai]);
 
   // mỗi lần có danh sách mới: mở các gốc của cây để thấy ngay cấp đầu tiên
   const cacNut = ds?.donVi ?? [];

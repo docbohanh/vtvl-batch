@@ -127,6 +127,13 @@ pub struct DanhSach {
 // Phần thuần: đọc phản hồi của cổng
 // ---------------------------------------------------------------------------
 
+const KHONG_PHAI_QUAN_TRI: &str = "Tài khoản này không có vai trò Quản trị hệ thống (SYSTEM_ADMIN)";
+
+/// Phản hồi `/auth/me` có vai trò quản trị hệ thống không.
+pub fn la_quan_tri(me: &Value) -> bool {
+    me["roles"].as_array().is_some_and(|r| r.iter().any(|x| x["role"].as_str() == Some("SYSTEM_ADMIN")))
+}
+
 /// Kỳ hiện tại: ưu tiên kỳ mặc định của tài khoản nếu đang MỞ, không thì kỳ MỞ đầu tiên.
 pub fn chon_ky(ky: &Value, mac_dinh: &str) -> Option<Ky> {
     let ds = ky.as_array()?;
@@ -216,8 +223,8 @@ async fn lay_het_trang(s: &Session, duong: &str, truy_van: &[(&str, &str)], kich
 /// Quét một lần: kỳ hiện tại, toàn bộ tài khoản, toàn bộ hồ sơ của kỳ, khung các biểu.
 pub async fn quet(s: &Session, bay_gio: &str) -> Result<DanhSach, String> {
     let me = s.get_json("/auth/me", &[]).await.map_err(loi)?;
-    if !me["roles"].as_array().is_some_and(|r| r.iter().any(|x| x["role"].as_str() == Some("SYSTEM_ADMIN"))) {
-        return Err("Tài khoản này không có vai trò Quản trị hệ thống (SYSTEM_ADMIN)".into());
+    if !la_quan_tri(&me) {
+        return Err(KHONG_PHAI_QUAN_TRI.into());
     }
     let ky = chon_ky(&s.get_json("/periods", &[]).await.map_err(loi)?, me["defaultPeriodId"].as_str().unwrap_or("")).ok_or("Cổng không có kỳ kê khai nào đang mở")?;
     let tai_khoan: Vec<TaiKhoanQt> = lay_het_trang(s, "/admin/users", &[], KICH_CO_TRANG_NGUOI_DUNG, usize::MAX).await?.iter().map(doc_tai_khoan).collect();
@@ -308,8 +315,86 @@ pub async fn chi_tiet_ho_so(s: &Session, id_ho_so: &str) -> Result<Vec<TomTatBie
 // Lệnh Tauri
 // ---------------------------------------------------------------------------
 
+use crate::tao_tai_khoan::TaiKhoanQuanTri;
 use crate::{lay_lo, AppState};
 use tauri::State;
+
+const TEP_TAI_KHOAN: &str = "tai-khoan-quan-tri.json";
+
+fn tep_tai_khoan(lo: &crate::Lo) -> std::path::PathBuf {
+    lo.root.join("_chung").join(TEP_TAI_KHOAN)
+}
+
+/// Nguồn của tài khoản quản trị đang dùng.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize)]
+pub enum Nguon {
+    #[serde(rename = "ung_dung")]
+    UngDung,
+    #[serde(rename = "lo")]
+    Lo,
+}
+
+/// Tài khoản thiết lập trong ứng dụng (tệp) ưu tiên; không có thì dùng `settings.taiKhoanQuanTri` trong tệp JSON của lô.
+pub fn tai_khoan_dang_dung(lo: &crate::Lo) -> Option<(TaiKhoanQuanTri, Nguon)> {
+    let day_du = |q: &TaiKhoanQuanTri| !q.username.trim().is_empty() && !q.password.is_empty();
+    crate::lo::doc_json::<TaiKhoanQuanTri>(&tep_tai_khoan(lo)).ok().filter(day_du).map(|q| (q, Nguon::UngDung))
+        .or_else(|| lo.cfg.settings.tai_khoan_quan_tri.clone().filter(day_du).map(|q| (q, Nguon::Lo)))
+}
+
+/// Ghi tài khoản quản trị ra tệp (quyền 600 trên Unix). Tệp nằm trong `data/` (đã loại khỏi git).
+fn ghi_tai_khoan(duong_dan: &std::path::Path, username: &str, mat_khau: &str) -> Result<(), String> {
+    crate::lo::ghi_json(duong_dan, &serde_json::json!({"username": username, "password": mat_khau}))?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = std::fs::set_permissions(duong_dan, std::fs::Permissions::from_mode(0o600));
+    }
+    Ok(())
+}
+
+#[derive(Debug, Serialize)]
+pub struct TinhTrangTaiKhoan {
+    /// Tên đăng nhập đang dùng; rỗng nếu chưa thiết lập. Không bao giờ trả mật khẩu.
+    #[serde(rename = "tenDangNhap")]
+    pub ten_dang_nhap: String,
+    pub nguon: Option<Nguon>,
+}
+
+fn tinh_trang(lo: &crate::Lo) -> TinhTrangTaiKhoan {
+    match tai_khoan_dang_dung(lo) {
+        Some((q, n)) => TinhTrangTaiKhoan { ten_dang_nhap: q.username, nguon: Some(n) },
+        None => TinhTrangTaiKhoan { ten_dang_nhap: String::new(), nguon: None },
+    }
+}
+
+/// Tài khoản quản trị đang dùng (không kèm mật khẩu).
+#[tauri::command]
+pub fn qt_tai_khoan(state: State<'_, AppState>) -> Result<TinhTrangTaiKhoan, String> {
+    Ok(tinh_trang(&*lay_lo(&state)?))
+}
+
+/// Thiết lập tài khoản quản trị mới: đăng nhập thử và phải có vai trò SYSTEM_ADMIN thì mới lưu; phiên cũ bị bỏ.
+/// Giao diện gọi tiếp `qt_danh_sach(true)` để quét lại cây đơn vị.
+#[tauri::command]
+pub async fn qt_dat_tai_khoan(ten_dang_nhap: String, mat_khau: String, state: State<'_, AppState>) -> Result<TinhTrangTaiKhoan, String> {
+    let lo = lay_lo(&state)?;
+    let ten = ten_dang_nhap.trim().to_string();
+    if ten.is_empty() || mat_khau.is_empty() {
+        return Err("Nhập đủ tên đăng nhập và mật khẩu của tài khoản quản trị".into());
+    }
+    let qt = TaiKhoanQuanTri { username: ten.clone(), password: mat_khau.clone() };
+    let s = crate::mo_phien_voi(&lo, &qt).await?;
+    let me = s.get_json("/auth/me", &[]).await.map_err(loi)?;
+    if !la_quan_tri(&me) {
+        return Err(KHONG_PHAI_QUAN_TRI.into());
+    }
+    ghi_tai_khoan(&tep_tai_khoan(&lo), &ten, &mat_khau)?;
+    *state.phien_quan_tri.lock().await = Some(s);
+    let mut e = crate::lo::su_kien("quan_tri_dat_tai_khoan");
+    e.ket_qua = Some("ok");
+    let _ = crate::lo::ghi_nhat_ky(&lo.root.join("_chung"), &e);
+    Ok(tinh_trang(&lo))
+}
 
 fn tep_cache(lo: &crate::Lo) -> std::path::PathBuf {
     lo.root.join("_chung").join("quan-tri.json")
@@ -417,6 +502,28 @@ mod tests {
         assert_eq!(d.loi.len(), 3);
         assert_eq!(d.du_lieu["A"], "x");
         assert!(doc_dong(&json!({})).loi.is_empty());
+    }
+
+    #[test]
+    fn nhan_ra_vai_tro_quan_tri_he_thong() {
+        assert!(la_quan_tri(&json!({"roles": [{"role": "UNIT_ENTRY"}, {"role": "SYSTEM_ADMIN"}]})));
+        assert!(!la_quan_tri(&json!({"roles": [{"role": "UNIT_ENTRY"}]})));
+        assert!(!la_quan_tri(&json!({})));
+    }
+
+    #[test]
+    fn tai_khoan_ghi_ra_tep_doc_lai_duoc_va_tep_uu_tien_hon_lo() {
+        let dir = std::env::temp_dir().join(format!("vtvl_qt_{}", std::process::id()));
+        let f = dir.join("_chung").join(TEP_TAI_KHOAN);
+        ghi_tai_khoan(&f, "quantri_x", "Mk@123").unwrap();
+        let q: TaiKhoanQuanTri = crate::lo::doc_json(&f).unwrap();
+        assert_eq!((q.username.as_str(), q.password.as_str()), ("quantri_x", "Mk@123"));
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            assert_eq!(std::fs::metadata(&f).unwrap().permissions().mode() & 0o777, 0o600);
+        }
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
