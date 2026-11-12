@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from 're
 import { api, loiThanhChuoi } from '../api';
 import { dinhDangCapNhat } from '../tongQuan';
 import { KHOA_UU_TIEN, nhanBieu, sapTab } from '../quanTri';
-import type { DonVi, DuLieuBieuQt, HoSoQt, TomTatBieuQt } from '../types';
+import type { DuLieuBieuQt, HoSoQt, TomTatBieuQt } from '../types';
 import { BangBieu } from './BangBieu';
 import { IcCanhBao, IcLamMoi, IcNguoi } from './Icons';
 
@@ -10,15 +10,14 @@ const NHAN_TRANG_THAI: Record<string, string> = { DRAFT: 'Đang kê khai', SUBMI
 
 export interface HoSoQuanTriProps {
   hoSo: HoSoQt;
-  /** Đơn vị tương ứng trong lô (có thì mở được thẻ đơn vị). */
-  donVi: DonVi | undefined;
-  onQuanTri: (username: string) => void;
+  /** Mở thẻ đơn vị (hỏi tài khoản và mật khẩu nếu đơn vị chưa có trong lô). */
+  onQuanTri: (hoSo: HoSoQt) => void;
 }
 
 type TaiBieu = { loai: 'dang_tai' } | { loai: 'loi'; thongBao: string } | { loai: 'xong'; du: DuLieuBieuQt };
 
 /** Chi tiết một hồ sơ: đầu trang tóm tắt và mỗi biểu một tab. B1, C3, D2 đứng đầu và nổi bật để thẩm định. Chỉ đọc. */
-export function HoSoQuanTri({ hoSo, donVi, onQuanTri }: HoSoQuanTriProps) {
+export function HoSoQuanTri({ hoSo, onQuanTri }: HoSoQuanTriProps) {
   const [bieu, setBieu] = useState<TomTatBieuQt[] | null>(null);
   const [loiBieu, setLoiBieu] = useState<string | null>(null);
   const [tab, setTab] = useState<string>(KHOA_UU_TIEN[0]);
@@ -88,8 +87,8 @@ export function HoSoQuanTri({ hoSo, donVi, onQuanTri }: HoSoQuanTriProps) {
           <button type="button" className="nut" onClick={() => { if (bieuChon) void taiBieu(bieuChon.khoa); }} disabled={!bieuChon || hienTai?.loai === 'dang_tai'} title="Đọc lại biểu đang xem từ cổng">
             <IcLamMoi /> Tải lại biểu
           </button>
-          <button type="button" className="nut nut--chinh" onClick={() => { if (donVi) onQuanTri(donVi.username); }} disabled={!donVi}
-            title={donVi ? 'Mở thẻ đơn vị: đăng nhập, Excel, chuẩn bị, gửi…' : 'Đơn vị này chưa có trong lô đang nạp, nên chưa mở được thẻ đơn vị'}>
+          <button type="button" className="nut nut--chinh" onClick={() => onQuanTri(hoSo)}
+            title="Mở thẻ đơn vị: đăng nhập, Excel, chuẩn bị, gửi… (đơn vị chưa có trong lô thì nhập tài khoản và mật khẩu)">
             <IcNguoi /> Quản trị
           </button>
         </div>

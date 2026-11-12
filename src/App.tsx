@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api, loiThanhChuoi } from './api';
 import logoCo from './assets/logo-co.png';
+import { DangNhapDonViDialog } from './components/DangNhapDonViDialog';
 import { CongMatKhau } from './components/CongMatKhau';
 import { ChonCauHinh } from './components/ChonCauHinh';
 import { HopDonVi } from './components/HopDonVi';
@@ -8,7 +9,7 @@ import { IcNguoi } from './components/Icons';
 import { QuanTriPage } from './components/QuanTriPage';
 import { UnitCard } from './components/UnitCard';
 import { docLichSu, ghiLichSu, themLichSu, xoaMucLichSu, type MucLichSu } from './lichSuLo';
-import type { DonVi } from './types';
+import type { DonVi, HoSoQt } from './types';
 import './styles.css';
 
 const CHU_KY_MS = 1000;
@@ -33,6 +34,7 @@ export default function App() {
   const [thongBao, setThongBao] = useState<string | null>(null);
   const [lichSu, setLichSu] = useState<MucLichSu[]>(docLichSu);
   const [donMo, setDonMo] = useState<string | null>(null); // tên đăng nhập của đơn vị đang mở trong hộp thoại
+  const [hoSoHoiMk, setHoSoHoiMk] = useState<HoSoQt | null>(null); // hồ sơ của đơn vị chưa có trong lô: đang hỏi tài khoản + mật khẩu
 
   const lamMoi = useCallback(async () => {
     try { setDon(await api.trangThai()); } catch { /* chưa nạp lô */ }
@@ -74,11 +76,20 @@ export default function App() {
     void api.khoiTaoLoTrong().then((p) => { setDuongDan(p); return napLo(p); }).catch((e) => setThongBao(loiThanhChuoi(e)));
   }, [napLo, daMo]);
 
-  /** Đơn vị trong lô có tên đăng nhập trùng một tài khoản của hồ sơ (khớp không phân biệt hoa thường). */
-  const timDonVi = useCallback((taiKhoan: readonly string[]): DonVi | undefined => {
-    const t = new Set(taiKhoan.map((x) => x.toLowerCase()));
-    return don.find((d) => t.has(d.username.toLowerCase()));
+  /** Nút Quản trị: đơn vị đã có trong lô (khớp tên đăng nhập, không phân biệt hoa thường) thì mở thẻ ngay, chưa có thì hỏi tài khoản và mật khẩu. */
+  const moDonVi = useCallback((hoSo: HoSoQt) => {
+    const t = new Set(hoSo.taiKhoan.map((x) => x.toLowerCase()));
+    const co = don.find((d) => t.has(d.username.toLowerCase()));
+    if (co) setDonMo(co.username); else setHoSoHoiMk(hoSo);
   }, [don]);
+
+  /** Thêm đơn vị vào lô như "Thêm đơn vị", mở thẻ và kiểm tra kết nối (đăng nhập) ngay. */
+  const themDonViRoiMo = useCallback(async (d: { username: string; label: string; password: string }) => {
+    const co = don.find((x) => x.username.toLowerCase() === d.username);
+    if (!co) setDon(await api.themDonVi({ ...d, excelFile: '', duong: '' }));
+    setDonMo(d.username);
+    void chay(d.username, () => api.dangNhap(d.username));
+  }, [don, chay]);
 
   if (!daMo) return <CongMatKhau onMo={() => setDaMo(true)} />;
   const donChon = don.find((d) => d.username === donMo);
@@ -104,7 +115,8 @@ export default function App() {
 
       {thongBao && <p className="thong-bao thong-bao--loi" role="alert">{thongBao}</p>}
 
-      <QuanTriPage daNapLo={daNapLo} timDonVi={timDonVi} onQuanTri={setDonMo} />
+      <QuanTriPage daNapLo={daNapLo} onQuanTri={moDonVi} />
+      <DangNhapDonViDialog hoSo={hoSoHoiMk} onClose={() => setHoSoHoiMk(null)} onXacNhan={themDonViRoiMo} />
 
       <HopDonVi open={donChon !== undefined} tieuDe={donChon?.label || donChon?.username || ''} onClose={() => setDonMo(null)}>
         {donChon && (
