@@ -682,7 +682,8 @@ button.cay__mui:hover { color: var(--chinh); background: var(--chinh-nen); }
 .qt__ds-gon { justify-self: start; }
 .qt__bo-cuc--gon-cay { grid-template-columns: 52px minmax(0, 1fr); }
 .qt__ds--gon { grid-template-rows: auto; align-content: start; justify-items: center; padding: 8px 6px; }
-.qt__ds--gon > *:not(.qt__ds-gon) { display: none; }
+.qt__ds--gon > *:not(.qt__ds-hang) { display: none; }
+.qt__ds--gon .qt__ds-capnhat { display: none; }
 .qt__ds--gon .qt__ds-gon { height: auto; flex-direction: column; justify-self: center; padding: 10px 6px; min-height: 44px; }
 .qt__ds--gon .qt__ds-gon span { writing-mode: vertical-rl; margin-top: 6px; }
 .hsqt__dau--gon .hsqt__phu + .hsqt__phu, .hsqt__dau--gon .ss { display: none; }
@@ -822,3 +823,12 @@ button.cay__mui:hover { color: var(--chinh); background: var(--chinh-nen); }
 .ss__pp--lech .ss__pp-tom-lech, .ss__pp--lech .ss__pp-tom-lech b { color: var(--chu-y); font-weight: 700; }
 .ss__pp-noi-dung { display: grid; gap: 8px; margin-top: 6px; }
 @media (prefers-reduced-motion: reduce) { .ss__pp-dau { transition: none; } }
+.loc-hop--trong { opacity: .6; }
+
+.qt__ds-hang { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.qt__ds-hang .qt__ds-capnhat { margin-left: auto; }
+.qt__ds--gon .qt__ds-hang { justify-content: center; }
+.loc-nut--so { display: inline-flex; align-items: center; gap: 4px; cursor: text; }
+.loc-nut--so input { width: 3.2em; height: 20px; padding: 0 2px; border: 0; border-bottom: 1px solid var(--vien); border-radius: 0; background: transparent; font: inherit; font-weight: 700; color: var(--chu); text-align: center; -moz-appearance: textfield; }
+.loc-nut--so input:focus-visible { outline: 2px solid var(--chinh); outline-offset: 1px; }
+.loc-nut--so .bb__xoa { margin-left: 2px; }

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, loiThanhChuoi } from '../api';
 import { laManHinhHep, useNhoBoolean } from '../boNho';
 import { dinhDangCapNhat } from '../tongQuan';
-import { dungHangCay, locHoSo, NHAN_CHE_DO, NUT_CHUA_XEP, type CheDoLoc } from '../quanTri';
+import { docPhanTram, dungHangCay, locHoSo, NHAN_CHE_DO, NUT_CHUA_XEP, type CheDoLoc } from '../quanTri';
 import type { DanhSachQt, HoSoQt, KyQt } from '../types';
 import { CayHoSo } from './CayHoSo';
 import { HoSoQuanTri } from './HoSoQuanTri';
@@ -28,6 +28,7 @@ export function QuanTriPage({ daNapLo, lanDoiTaiKhoan, onQuanTri }: QuanTriPageP
   const [loi, setLoi] = useState<string | null>(null);
   const [tim, setTim] = useState('');
   const [che, setChe] = useState<CheDoLoc>('tat_ca');
+  const [tienDoNhap, setTienDoNhap] = useState(''); // chip "Tiến độ ≤ n %"; trống = tắt
   const [chon, setChon] = useState<string | null>(null);
   const [gonCay, setGonCay] = useNhoBoolean('vtvl-batch.gon-cay', laManHinhHep); // thu cây đơn vị thành một cột hẹp
   const [moRong, setMoRong] = useState<ReadonlySet<string>>(new Set()); // nhánh đang mở trong cây
@@ -64,7 +65,8 @@ export function QuanTriPage({ daNapLo, lanDoiTaiKhoan, onQuanTri }: QuanTriPageP
     try { setCacKy(await api.qtCacKy()); } catch (e) { setLoi(loiThanhChuoi(e)); }
   };
 
-  useEffect(() => { if (daNapLo) void tai(false); }, [daNapLo, tai]);
+  // mở app (hoặc nạp lô) là quét lại cổng để cây luôn mới; quét lỗi thì báo, cache cũ vẫn dùng được ở lần bấm sau
+  useEffect(() => { if (daNapLo) void tai(true); }, [daNapLo, tai]);
   useEffect(() => { if (lanDoiTaiKhoan > 0) { setChon(null); void tai(true); } }, [lanDoiTaiKhoan, tai]);
 
   // mỗi lần có danh sách mới: mở các gốc của cây để thấy ngay cấp đầu tiên
@@ -75,8 +77,9 @@ export function QuanTriPage({ daNapLo, lanDoiTaiKhoan, onQuanTri }: QuanTriPageP
     setMoRong(new Set([NUT_CHUA_XEP, ...(ds.donVi ?? []).filter((n) => !n.chaId || !co.has(n.chaId)).map((n) => n.id)]));
   }, [ds]);
 
-  const hienThi = useMemo(() => (ds ? locHoSo(ds.hoSo, tim, che) : []), [ds, tim, che]);
-  const dangTim = tim.trim() !== '' || che !== 'tat_ca'; // đang lọc thì mở hết để thấy mọi kết quả
+  const tienDoToiDa = docPhanTram(tienDoNhap);
+  const hienThi = useMemo(() => (ds ? locHoSo(ds.hoSo, tim, che, tienDoToiDa) : []), [ds, tim, che, tienDoToiDa]);
+  const dangTim = tim.trim() !== '' || che !== 'tat_ca' || tienDoToiDa !== null; // đang lọc thì mở hết để thấy mọi kết quả
   const hangCay = useMemo(() => dungHangCay(cacNut, hienThi, moRong, dangTim), [cacNut, hienThi, moRong, dangTim]);
   const doiNhanh = (id: string) => setMoRong((cu) => { const n = new Set(cu); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   const coCon = useMemo(() => new Set(cacNut.map((n) => n.chaId).filter((c): c is string => !!c)), [cacNut]);
@@ -128,18 +131,21 @@ export function QuanTriPage({ daNapLo, lanDoiTaiKhoan, onQuanTri }: QuanTriPageP
               : dangQuet ? 'Đang quét cổng lần đầu (tài khoản, hồ sơ, khung biểu), có thể mất vài chục giây…' : ' '}
           </p>
         </div>
-        <button type="button" className="nut" onClick={() => { void tai(true); }} disabled={dangQuet} title="Quét lại tài khoản và hồ sơ trên cổng, ghi đè cache">
-          {dangQuet ? <span className="quay" aria-hidden="true" /> : <IcLamMoi />} Cập nhật
-        </button>
       </div>
       {loi && <p className="thong-bao thong-bao--loi" role="alert"><IcCanhBao />{loi}</p>}
 
       <div className={`qt__bo-cuc${gonCay ? ' qt__bo-cuc--gon-cay' : ''}`}>
         <aside className={`qt__ds${gonCay ? ' qt__ds--gon' : ''}`} aria-label="Danh sách hồ sơ">
-          <button type="button" className="nut nut--nho qt__ds-gon" aria-expanded={!gonCay} onClick={() => setGonCay((g) => !g)}
-            title={gonCay ? 'Mở rộng cây đơn vị' : 'Thu gọn cây đơn vị để xem biểu rộng hơn'}>
-            <IcGonTrai /> <span>{gonCay ? 'Cây đơn vị' : 'Thu gọn cây'}</span>
-          </button>
+          <div className="qt__ds-hang">
+            <button type="button" className="nut nut--nho qt__ds-gon" aria-expanded={!gonCay} onClick={() => setGonCay((g) => !g)}
+              title={gonCay ? 'Mở rộng cây đơn vị' : 'Thu gọn cây đơn vị để xem biểu rộng hơn'}>
+              <IcGonTrai /> <span>{gonCay ? 'Cây đơn vị' : 'Thu gọn cây'}</span>
+            </button>
+            <button type="button" className="nut nut--nho qt__ds-capnhat" onClick={() => { void tai(true); }} disabled={dangQuet}
+              title="Cập nhật cây đơn vị: quét lại tài khoản và hồ sơ trên cổng, ghi đè cache" aria-label="Cập nhật cây đơn vị">
+              {dangQuet ? <span className="quay" aria-hidden="true" /> : <IcLamMoi />} <span>Cập nhật</span>
+            </button>
+          </div>
           <label className="tim-kiem">
             <IcTim aria-hidden="true" />
             <input type="search" value={tim} onChange={(e) => setTim(e.target.value)} placeholder="Tìm đơn vị, mã, tài khoản…" aria-label="Tìm hồ sơ" autoComplete="off" spellCheck={false} disabled={!ds} />
@@ -148,6 +154,13 @@ export function QuanTriPage({ daNapLo, lanDoiTaiKhoan, onQuanTri }: QuanTriPageP
             {CAC_CHE_DO.map((c) => (
               <button key={c} type="button" className={`loc-nut${che === c ? ' loc-nut--chon' : ''}`} aria-pressed={che === c} onClick={() => setChe(c)}>{NHAN_CHE_DO[c]}</button>
             ))}
+            <label className={`loc-nut loc-nut--so${tienDoToiDa !== null ? ' loc-nut--chon' : ''}`} title="Chỉ hiện hồ sơ có tiến độ nhỏ hơn hoặc bằng số này. Để trống để tắt.">
+              Tiến độ ≤
+              <input type="number" inputMode="numeric" min={0} max={100} step={1} value={tienDoNhap} placeholder="99" aria-label="Chỉ hiện hồ sơ có tiến độ nhỏ hơn hoặc bằng (phần trăm)" disabled={!ds}
+                onChange={(e) => setTienDoNhap(e.target.value)} />
+              %
+              {tienDoNhap !== '' && <button type="button" className="bb__xoa" onClick={(e) => { e.preventDefault(); setTienDoNhap(''); }} aria-label="Bỏ lọc tiến độ">×</button>}
+            </label>
           </div>
           <div className="qt__cay-nut">
             <button type="button" className="loc-nut" onClick={() => setMoRong(new Set([NUT_CHUA_XEP, ...coCon]))} disabled={!ds}>Mở hết</button>

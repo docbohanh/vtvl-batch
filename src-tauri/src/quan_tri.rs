@@ -611,7 +611,7 @@ pub(crate) async fn xuat_ho_so(state: &AppState, id_ho_so: &str, dich: &std::pat
     for b in chi_tiet_ho_so(&s, id_ho_so).await? { cac.push(doc_bieu_day_du(&s, id_ho_so, &b.khoa).await?); }
     if let Some(b) = cac.iter().find(|b| b.bi_cat) { return Err(format!("Biểu {} quá lớn, chỉ đọc được một phần nên không xuất để tránh thiếu dữ liệu", b.bieu.ma)); }
     let ks = &lo.cfg.settings.kiem_tra_script;
-    let script = if std::path::Path::new(ks).is_absolute() { std::path::PathBuf::from(ks) } else { lo.goc.join(ks) };
+    let script = crate::lo::giai_duong_script(&lo.goc, ks);
     crate::xuat_b30k::xuat(&lo.cfg.settings.node, &script, &cac, dich).await
 }
 

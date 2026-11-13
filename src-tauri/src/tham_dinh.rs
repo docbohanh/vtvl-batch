@@ -111,7 +111,7 @@ pub async fn tham_dinh_excel(duong_dan: String, state: State<'_, AppState>) -> R
 /// Chạy bộ kiểm tra cục bộ trên một tệp Excel và dựng dữ liệu các biểu.
 pub(crate) async fn chay_tham_dinh(lo: &crate::Lo, excel: &Path, ten_tep: String, kich_thuoc: u64) -> Result<KetQuaThamDinh, String> {
     let s = &lo.cfg.settings;
-    let script = if Path::new(&s.kiem_tra_script).is_absolute() { PathBuf::from(&s.kiem_tra_script) } else { lo.goc.join(&s.kiem_tra_script) };
+    let script = crate::lo::giai_duong_script(&lo.goc, &s.kiem_tra_script);
     let dm = crate::danh_muc::tep_chung(&lo.root);
     let y = kiem_tra_local::YeuCau {
         node: &s.node, script: &script, excel, mode: "workbook", form_key: None, ky: None, danh_muc: dm.is_file().then_some(dm.as_path()),

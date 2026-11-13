@@ -15,9 +15,11 @@ export const NHAN_CHE_DO: Record<CheDoLoc, string> = {
 };
 
 /** Lọc hồ sơ theo chuỗi tìm (tên, mã đơn vị, tên đăng nhập) và chế độ. */
-export function locHoSo(ds: readonly HoSoQt[], tim: string, che: CheDoLoc): HoSoQt[] {
+/** `tienDoToiDa`: chỉ giữ hồ sơ có tiến độ ≤ giá trị này (%); null = không lọc theo tiến độ. */
+export function locHoSo(ds: readonly HoSoQt[], tim: string, che: CheDoLoc, tienDoToiDa: number | null = null): HoSoQt[] {
   const q = boDau(tim.trim());
   return ds.filter((h) => {
+    if (tienDoToiDa !== null && h.tienDo > tienDoToiDa) return false;
     if (che === 'chua_dat' && h.dongChuaDat === 0) return false;
     if (che === 'chua_co_du_lieu' && h.dongDat + h.dongChuaDat > 0) return false;
     return !q || boDau(`${h.ten} ${h.ma} ${h.taiKhoan.join(' ')}`).includes(q);
@@ -77,6 +79,8 @@ export interface CauHinhBieu {
   tong?: { loaiTru: readonly string[] };
   /** Nút lọc theo năm theo giá trị của cột này. */
   locNam?: { cot: string };
+  /** Lọc theo giá trị của cột này (C3: phương pháp ở cột B, gồm cả tổ hợp PP1+PP2…). */
+  locPP?: { cot: string };
   /** Ước tính số người = tổng cột giờ ÷ 1.904. */
   soNguoi?: { cotGio: string };
   /** Cột "Người cần bố trí" để cộng lại và so với ước tính của B1. */
@@ -85,7 +89,7 @@ export interface CauHinhBieu {
 
 export const CAU_HINH_BIEU: Readonly<Record<string, CauHinhBieu>> = {
   b1: { sapXepLoc: { cot: 'D', nhan: 'Phút/SP (D)' }, soNguoi: { cotGio: 'G' } },
-  c3: { tong: { loaiTru: [] }, nguoiCanBoTri: { cot: 'J' } },
+  c3: { tong: { loaiTru: [] }, nguoiCanBoTri: { cot: 'J' }, locPP: { cot: 'B' } },
   d2: { tong: { loaiTru: ['B'] }, locNam: { cot: 'B' } },
 };
 
@@ -127,6 +131,40 @@ export function cacNam(dong: readonly DongQt[], cot: string): number[] {
 
 export function locNam(dong: readonly DongQt[], cot: string, nam: number | null): DongQt[] {
   return nam === null ? [...dong] : dong.filter((d) => soTuO(d.duLieu[cot]) === nam);
+}
+
+/** Đọc ô nhập phần trăm: số 0–100; trống hoặc không hợp lệ thì null (không lọc). */
+export function docPhanTram(t: string): number | null {
+  if (t.trim() === '') return null;
+  const n = soTuO(t);
+  return n === null ? null : Math.min(100, Math.max(0, n));
+}
+
+/** Chuẩn hóa giá trị phương pháp: bỏ khoảng trắng, chữ hoa; rỗng → "" (chưa chọn). */
+export const chuanPP = (v: unknown): string => String(v ?? '').replace(/\s/g, '').toUpperCase();
+
+export const PP_CHUA_CHON = '(chưa chọn)';
+const PP_DON: readonly string[] = ['PP1', 'PP2', 'PP3'];
+
+/** Các lựa chọn lọc phương pháp: PP1/PP2/PP3 luôn có, tổ hợp và "(chưa chọn)" chỉ khi có dòng; kèm số dòng. */
+export function cacPP(dong: readonly DongQt[], cot: string): { pp: string; so: number }[] {
+  const dem = new Map<string, number>();
+  for (const d of dong) { const k = chuanPP(d.duLieu[cot]) || PP_CHUA_CHON; dem.set(k, (dem.get(k) ?? 0) + 1); }
+  const khac = [...dem.keys()].filter((k) => !PP_DON.includes(k)).sort((a, b) => (a === PP_CHUA_CHON ? 1 : b === PP_CHUA_CHON ? -1 : a.localeCompare(b)));
+  return [...PP_DON, ...khac].map((pp) => ({ pp, so: dem.get(pp) ?? 0 }));
+}
+
+/** Giữ dòng có phương pháp thuộc `ppChon`; rỗng = tất cả. */
+export function locTheoPP(dong: readonly DongQt[], cot: string, ppChon: readonly string[]): DongQt[] {
+  if (ppChon.length === 0) return [...dong];
+  const co = new Set(ppChon);
+  return dong.filter((d) => co.has(chuanPP(d.duLieu[cot]) || PP_CHUA_CHON));
+}
+
+/** Bật/tắt một phương pháp trong danh sách đã chọn (bất biến). Chọn đủ mọi phương pháp thì quay về rỗng = tất cả. */
+export function doiPP(ppChon: readonly string[], pp: string, tatCa: readonly string[]): string[] {
+  const moi = ppChon.includes(pp) ? ppChon.filter((x) => x !== pp) : [...ppChon, pp];
+  return moi.length >= tatCa.length ? [] : moi;
 }
 
 /** Các năm phương án biên chế của D2 (2027 – 2031); luôn hiện đủ để tích chọn dù hồ sơ chưa có dòng của năm đó. */

@@ -332,6 +332,7 @@ fn nap_lo(p: &Path, state: &AppState) -> Result<Vec<DonViView>, String> {
 fn tim_tap_lenh_kiem_tra() -> Option<String> {
     let tuong_doi = Path::new("scripts").join("kiem-tra").join("cli.mjs");
     let mut goc: Vec<PathBuf> = Vec::new();
+    goc.extend(lo::thu_muc_tai_nguyen().cloned());
     if let Ok(exe) = std::env::current_exe() {
         goc.extend(exe.parent().map(Path::to_path_buf));
     }
@@ -698,7 +699,7 @@ async fn kiem_tra_file(lo: &Lo, u: &UnitEntry, tk: &ket_noi::TaiKhoan, sess: &Se
     cap_nhat(dir, |t| { t.buoc = Buoc::DangKiemTraFile; t.tien_do = 25; });
     let dm = danh_muc::dam_bao(sess, &lo.root, s.request_interval_ms).await?;
     let ky = nhan_ky(&tk.ky);
-    let script = if Path::new(&s.kiem_tra_script).is_absolute() { PathBuf::from(&s.kiem_tra_script) } else { lo.goc.join(&s.kiem_tra_script) };
+    let script = lo::giai_duong_script(&lo.goc, &s.kiem_tra_script);
     let y = kiem_tra_local::YeuCau {
         node: &s.node, script: &script, excel: &excel, mode: &u.mode, form_key: u.form_key.as_deref(), ky: ky.as_deref(), danh_muc: Some(&dm),
         timeout: Duration::from_secs(s.timeout_sec),
@@ -1276,6 +1277,10 @@ fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .manage(AppState::default())
+        .setup(|app| {
+            if let Ok(t) = app.path().resource_dir() { lo::dat_thu_muc_tai_nguyen(t); }
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![khoi_dong_khoa, khoi_tao_lo_trong, kiem_tra_ma, kiem_tra_tep, lay_ket_qua_kiem_tra, lo_nap, them_don_vi, sua_don_vi, xoa_don_vi, lay_bearer, lay_nguoi, chon_excel, chon_ho_so, xoa_dem, tong_quan, gui_buoc_8, xoa_du_lieu, dang_nhap, dat_cookie, dat_nguoi, lay_trang_thai, kiem_tra_ket_noi_tat_ca, tq_lay_cay, tq_tao, quan_tri::qt_tai_khoan, quan_tri::qt_dat_tai_khoan, quan_tri::qt_ds_tai_khoan_da_luu, quan_tri::qt_chuyen_tai_khoan, quan_tri::qt_xoa_tai_khoan_da_luu, quan_tri::qt_danh_sach, quan_tri::qt_cac_ky, quan_tri::qt_chi_tiet, quan_tri::qt_bieu, cap_nhat::kiem_tra_cap_nhat, cap_nhat::mo_trang_tai, cap_nhat::tai_ban_cap_nhat, cap_nhat::cai_ban_cap_nhat, tham_dinh::tham_dinh_excel, truong_don_vi::tdv_thong_tin, truong_don_vi::tdv_danh_sach, quan_tri::qt_xuat_excel, bao_cao_cay::bc_cay_trang_thai, bao_cao_cay::bc_cay_xuat, bao_cao_tien_do::bc_tien_do_xuat, tq_xuat_excel, chuan_bi, chuan_bi_tat_ca, gui, gui_lai, gui_tat_ca])
         .run(tauri::generate_context!())
         .expect("error");

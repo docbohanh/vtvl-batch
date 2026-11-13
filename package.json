@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
+    "gom-script": "node scripts/gom-script.mjs",
     "tauri": "tauri",
     "test:kiem-tra": "node --test scripts/kiem-tra/tests/*.test.js"
   },

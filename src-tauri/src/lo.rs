@@ -19,6 +19,21 @@ fn d_poll() -> u64 { 2000 }
 fn d_max_changes() -> usize { 500 }
 fn d_true() -> bool { true }
 fn d_node() -> String { "node".into() }
+static THU_MUC_TAI_NGUYEN: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
+
+/// Ghi thư mục tài nguyên đóng gói kèm ứng dụng (chứa `scripts/` và `templates/`).
+pub fn thu_muc_tai_nguyen() -> Option<&'static PathBuf> { THU_MUC_TAI_NGUYEN.get() }
+
+pub fn dat_thu_muc_tai_nguyen(p: PathBuf) { let _ = THU_MUC_TAI_NGUYEN.set(p); }
+
+/// Đường dẫn tập lệnh kiểm tra: tuyệt đối thì giữ nguyên; tương đối thì tìm cạnh tệp lô, rồi trong tài nguyên đóng gói kèm ứng dụng.
+pub fn giai_duong_script(goc: &Path, ks: &str) -> PathBuf {
+    if Path::new(ks).is_absolute() { return PathBuf::from(ks); }
+    let canh_lo = goc.join(ks);
+    if canh_lo.is_file() { return canh_lo; }
+    match THU_MUC_TAI_NGUYEN.get().map(|t| t.join(ks)) { Some(p) if p.is_file() => p, _ => canh_lo }
+}
+
 fn d_kiem_tra() -> String { "scripts/kiem-tra/cli.mjs".into() }
 fn d_mode() -> String { "workbook".into() }
 fn d_nguoi() -> String { "Lã Hữu Thành".into() }
