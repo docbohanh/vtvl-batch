@@ -832,3 +832,22 @@ button.cay__mui:hover { color: var(--chinh); background: var(--chinh-nen); }
 .loc-nut--so input { width: 3.2em; height: 20px; padding: 0 2px; border: 0; border-bottom: 1px solid var(--vien); border-radius: 0; background: transparent; font: inherit; font-weight: 700; color: var(--chu); text-align: center; -moz-appearance: textfield; }
 .loc-nut--so input:focus-visible { outline: 2px solid var(--chinh); outline-offset: 1px; }
 .loc-nut--so .bb__xoa { margin-left: 2px; }
+
+.ss__chi-tiet { display: block; font-weight: 400; font-size: 0.72rem; color: var(--chu-phu); }
+.ss__ghi-chu { margin: 6px 0 0; font-size: 0.72rem; color: var(--chu-phu); }
+
+/* Ô "C3 cần bố trí" bấm được: mở hộp thoại đối soát PP */
+.ss__the-bam { cursor: pointer; border-radius: 8px; padding: 4px 8px; margin: -4px -8px; transition: background-color 150ms; }
+.ss__the-bam:hover { background: color-mix(in srgb, var(--cta) 10%, transparent); }
+.ss__the-bam:focus-visible { outline: 2px solid var(--chinh); outline-offset: 1px; }
+.ss__the-goi-y { color: var(--chinh); font-weight: 600; }
+.ss__the-goi-y--lech { color: var(--chu-y); }
+.hop-doi-soat { width: min(880px, calc(100vw - 32px)); max-height: min(86vh, 900px); padding: 0; overflow: hidden; }
+.hop-doi-soat[open] { display: flex; flex-direction: column; }
+.hop-doi-soat__dau { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 20px 8px; }
+.hop-doi-soat__dau h2 { margin: 0; }
+.hop-doi-soat__tom { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 0; padding: 0 20px 10px; font-size: 0.88rem; border-bottom: 1px solid var(--vien); }
+.hop-doi-soat__than { overflow: auto; padding: 14px 20px 20px; display: grid; gap: 14px; }
+.nut--bieu-tuong { width: 36px; height: 36px; padding: 0; display: inline-grid; place-items: center; }
+@media (prefers-reduced-motion: no-preference) { .hop-doi-soat[open] { animation: hop-doi-soat-vao 180ms ease-out; } }
+@keyframes hop-doi-soat-vao { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }

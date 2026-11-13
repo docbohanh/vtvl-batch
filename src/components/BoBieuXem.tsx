@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { loiThanhChuoi } from '../api';
 import { laManHinhHep, useNhoBoolean } from '../boNho';
-import { dinhDangTong, GIO_MOT_NGUOI_NAM, KHOA_UU_TIEN, nhanBieu, NGUONG_LECH_KHOP, sapTab, soSanhNguoi, tongTheoPP, NGUONG_LECH_PP, type TongTheoPP } from '../quanTri';
+import { dinhDangTong, GIO_MOT_NGUOI_NAM, KHOA_UU_TIEN, nhanBieu, NGUONG_LECH_KHOP, sapTab, soSanhNguoi, tongTheoPP, NGUONG_LECH_PP, chiSoThamDinh, type ChiSoThamDinh, type TongTheoPP } from '../quanTri';
 import type { DuLieuBieuQt, TomTatBieuQt } from '../types';
 import { BangBieu } from './BangBieu';
-import { IcCanhBao, IcLenTren, IcLenXuong } from './Icons';
+import { IcCanhBao, IcDong, IcLenTren, IcLenXuong } from './Icons';
 
 type TaiBieu = { loai: 'dang_tai' } | { loai: 'loi'; thongBao: string } | { loai: 'xong'; du: DuLieuBieuQt };
 
@@ -67,7 +67,7 @@ export function BoBieuXem({ khoaNap, tenAria, dau, nut: veNut, thongBao, layDanh
   // đọc biểu của tab đang mở, cùng B1 và C3 (để đầu trang so sánh số người) — mỗi biểu một lần
   useEffect(() => {
     if (!bieu) return;
-    for (const k of new Set([tab, 'b1', 'c3'])) {
+    for (const k of new Set([tab, 'b1', 'c3', 'c1'])) {
       if (bieu.some((b) => b.khoa === k) && !da[k]) void taiBieu(k);
     }
   }, [bieu, tab, da, taiBieu]);
@@ -97,6 +97,8 @@ export function BoBieuXem({ khoaNap, tenAria, dau, nut: veNut, thongBao, layDanh
   const b1 = da.b1;
   const c3 = da.c3;
   const soSanh = b1?.loai === 'xong' && c3?.loai === 'xong' ? soSanhNguoi(b1.du.dong, c3.du.dong) : null;
+  const c1 = da.c1;
+  const chiSo = b1?.loai === 'xong' && c3?.loai === 'xong' ? chiSoThamDinh(b1.du.dong, c3.du.dong, c1?.loai === 'xong' ? c1.du.dong : null) : [];
   const bieuChon = moi.find((b) => b.khoa === tab);
 
   return (
@@ -109,7 +111,7 @@ export function BoBieuXem({ khoaNap, tenAria, dau, nut: veNut, thongBao, layDanh
           </button>
           {veNut({ bieuChon, dangTai: hienTai?.loai === 'dang_tai', taiLai: () => { if (bieuChon) void taiBieu(bieuChon.khoa); }, coBieu: bieu !== null })}
         </div>
-        <SoSanhB1C3 soSanh={soSanh} pp={c3?.loai === 'xong' ? tongTheoPP(c3.du.dong) : null} dangTai={bieu !== null && (b1?.loai === 'dang_tai' || c3?.loai === 'dang_tai' || !b1 || !c3)} />
+        <SoSanhB1C3 soSanh={soSanh} chiSo={chiSo} pp={c3?.loai === 'xong' ? tongTheoPP(c3.du.dong) : null} dangTai={bieu !== null && (b1?.loai === 'dang_tai' || c3?.loai === 'dang_tai' || !b1 || !c3)} />
       </header>
 
       {thongBao}
@@ -138,12 +140,15 @@ export function BoBieuXem({ khoaNap, tenAria, dau, nut: veNut, thongBao, layDanh
 
 interface SoSanhB1C3Props {
   soSanh: ReturnType<typeof soSanhNguoi> | null;
+  /** Chỉ số thẩm định tính từ B1, C3, C1 (rỗng khi chưa đọc đủ). */
+  chiSo: ChiSoThamDinh[];
   pp: TongTheoPP | null;
   dangTai: boolean;
 }
 
 /** Dải so sánh trên đầu hồ sơ: số người ước tính từ B1 (tổng giờ ÷ 1.904) với tổng "Người cần bố trí" ở C3, trên toàn bộ dòng hai biểu. */
-function SoSanhB1C3({ soSanh, pp, dangTai }: SoSanhB1C3Props) {
+function SoSanhB1C3({ soSanh, chiSo, pp, dangTai }: SoSanhB1C3Props) {
+  const [moDoiSoat, setMoDoiSoat] = useState(false);
   if (!soSanh) {
     return <p className="ss ss--cho" role="status">{dangTai ? <><span className="quay" aria-hidden="true" /> Đang đọc B1 và C3 để so sánh số người…</> : 'Chưa so sánh được: không đọc được B1 hoặc C3 của hồ sơ này.'}</p>;
   }
@@ -161,10 +166,12 @@ function SoSanhB1C3({ soSanh, pp, dangTai }: SoSanhB1C3Props) {
           <dd>{dinhDangTong(nguoiB1)} <small>người</small></dd>
           <span className="ss__thanh" aria-hidden="true"><i className="ss__thanh--b1" style={{ width: `${(nguoiB1 / lonNhat) * 100}%` }} /></span>
         </div>
-        <div title="Tổng cột J (Người cần bố trí) của C3">
+        <div className={pp ? 'ss__the-bam' : undefined} title={pp ? 'Tổng cột J (Người cần bố trí) của C3. Bấm để đối soát theo PP1/PP2/PP3 và kết hợp' : 'Tổng cột J (Người cần bố trí) của C3'}
+          {...(pp ? { role: 'button', tabIndex: 0, 'aria-haspopup': 'dialog' as const, onClick: () => setMoDoiSoat(true), onKeyDown: (e: KeyboardEvent<HTMLDivElement>) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setMoDoiSoat(true); } } } : {})}>
           <dt>C3 cần bố trí</dt>
           <dd>{dinhDangTong(nguoiC3)} <small>người</small></dd>
           <span className="ss__thanh" aria-hidden="true"><i className="ss__thanh--c3" style={{ width: `${(nguoiC3 / lonNhat) * 100}%` }} /></span>
+          {pp && <span className={`ss__ket-luan ss__the-goi-y${coLech(pp.lech) ? ' ss__the-goi-y--lech' : ''}`}>Đối soát PP{coLech(pp.lech) ? ` · lệch ${dauLech(pp.lech)}${dinhDangTong(Math.abs(pp.lech))}` : ' · khớp'} ›</span>}
         </div>
         <div>
           <dt>Chênh lệch (B1 − C3)</dt>
@@ -172,7 +179,51 @@ function SoSanhB1C3({ soSanh, pp, dangTai }: SoSanhB1C3Props) {
           <span className="ss__ket-luan">{ketLuan}</span>
         </div>
       </dl>
-      {pp && <TheoPP pp={pp} />}
+      {chiSo.length > 0 && <ChiSo chiSo={chiSo} />}
+      {pp && <DoiSoatPP pp={pp} open={moDoiSoat} onClose={() => setMoDoiSoat(false)} />}
+    </div>
+  );
+}
+
+const NHAN_MUC: Record<string, string> = { tot: 'Đạt', chu_y: 'Cần giải trình', xau: 'Trả lại' };
+
+/** Chỉ số thẩm định tính từ B1, C3, C1 (mở/đóng). Chỉ số 1 là cổng thật sự của kết luận; các chỉ số khác chỉ nêu chỗ cần giải trình, không phải lỗi. */
+function ChiSo({ chiSo }: { chiSo: ChiSoThamDinh[] }) {
+  const [mo, setMo] = useNhoBoolean('vtvl-batch.mo-chi-so', () => false);
+  const canGiaiTrinh = chiSo.filter((c) => c.muc === 'chu_y' || c.muc === 'xau').length;
+  return (
+    <div className={`ss__pp${canGiaiTrinh > 0 ? ' ss__pp--lech' : ''}`}>
+      <button type="button" className="ss__pp-dau" aria-expanded={mo} aria-controls="ss-chi-so" onClick={() => setMo((m) => !m)}
+        title={mo ? 'Thu gọn chỉ số thẩm định' : 'Mở chỉ số thẩm định'}>
+        {mo ? <IcLenTren /> : <IcLenXuong />}
+        <span className="ss__pp-nhan">Chỉ số thẩm định</span>
+        <span className="ss__pp-tom">
+          {chiSo.filter((c) => c.so === 1).map((c) => <span key={c.so} className="ss__pp-tom-lech">VTVL đủ căn cứ <b>{c.giaTri}</b></span>)}
+          <span className="ss__pp-tom-lech">{canGiaiTrinh > 0 ? `${canGiaiTrinh} chỉ số cần giải trình` : 'Không có chỉ số ngoài ngưỡng'}</span>
+        </span>
+      </button>
+      {mo && (
+        <div id="ss-chi-so" className="ss__pp-noi-dung">
+          <div className="ss__pp-bang" tabIndex={0}>
+            <table>
+              <caption className="ss__pp-nhan">Tính từ B1, C3, C1 của hồ sơ; các chỉ số cần Nguồn 1/4/5 hoặc D2 không tính ở đây</caption>
+              <thead><tr><th scope="col">TT</th><th scope="col">Chỉ số</th><th scope="col">Giá trị</th><th scope="col">Ngưỡng</th><th scope="col">Mức</th></tr></thead>
+              <tbody>
+                {chiSo.map((c) => (
+                  <tr key={c.so} className={c.muc === 'chu_y' || c.muc === 'xau' ? 'ss__pp-hang--lech' : undefined}>
+                    <td>{c.so}</td>
+                    <th scope="row" title={c.chiTiet}>{c.ten}<small className="ss__chi-tiet">{c.chiTiet}</small></th>
+                    <td><b>{c.giaTri}</b></td>
+                    <td>{c.nguong}</td>
+                    <td className="ss__pp-lech">{c.muc ? NHAN_MUC[c.muc] : '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="ss__ghi-chu">Dòng đạt theo kết quả kiểm tra của cổng. Chỉ số 1 là cổng thật sự của kết luận; các chỉ số khác là ngưỡng tham khảo, không phải lỗi.</p>
+        </div>
+      )}
     </div>
   );
 }
@@ -180,27 +231,35 @@ function SoSanhB1C3({ soSanh, pp, dangTai }: SoSanhB1C3Props) {
 const dauLech = (n: number): string => (n > 0 ? '+' : n < 0 ? '−' : '');
 const coLech = (n: number): boolean => Math.abs(n) > NGUONG_LECH_PP;
 
-/** Tổng người quy đổi ở C3 theo PP1/PP2/PP3, đối soát với người cần bố trí, kèm bảng từng VTVL (mở/đóng, lọc VTVL lệch). */
-function TheoPP({ pp }: { pp: TongTheoPP }) {
+/** Hộp thoại đối soát: tổng người quy đổi ở C3 theo PP1/PP2/PP3 và tổ hợp so với người cần bố trí, kèm bảng từng VTVL (lọc VTVL lệch). Mở khi bấm ô "C3 cần bố trí". */
+function DoiSoatPP({ pp, open, onClose }: { pp: TongTheoPP; open: boolean; onClose: () => void }) {
+  const ref = useRef<HTMLDialogElement>(null);
   const [chiLech, setChiLech] = useState(false);
-  const [mo, setMo] = useNhoBoolean('vtvl-batch.mo-doi-soat', () => false);
   const tong = [['PP1', pp.pp1], ['PP2', pp.pp2], ['PP3', pp.pp3]] as const;
   const soLech = pp.theoVtvl.filter((v) => coLech(v.lech)).length;
   const hien = chiLech ? pp.theoVtvl.filter((v) => coLech(v.lech)) : pp.theoVtvl;
+
+  useEffect(() => {
+    const d = ref.current;
+    if (!d) return;
+    if (open && !d.open) d.showModal();
+    if (!open && d.open) d.close();
+  }, [open]);
+
   return (
-    <div className={`ss__pp${coLech(pp.lech) ? ' ss__pp--lech' : ''}`}>
-      <button type="button" className="ss__pp-dau" aria-expanded={mo} aria-controls="ss-pp-noi-dung" onClick={() => setMo((m) => !m)}
-        title={mo ? 'Thu gọn khung đối soát' : 'Mở khung đối soát theo PP1/PP2/PP3 và kết hợp'}>
-        {mo ? <IcLenTren /> : <IcLenXuong />}
-        <span className="ss__pp-nhan">Đối soát PP1/PP2/PP3 + kết hợp</span>
-        <span className="ss__pp-tom">
-          <span>Quy đổi <b>{dinhDangTong(pp.quyDoiChon)}</b></span>
-          <span>Cần bố trí <b>{dinhDangTong(pp.canBoTri)}</b></span>
-          <span className="ss__pp-tom-lech">Lệch <b>{dauLech(pp.lech)}{dinhDangTong(Math.abs(pp.lech))}</b></span>
-          <span className="ss__pp-tom-lech">{coLech(pp.lech) ? `${soLech} VTVL lệch` : 'Khớp'}</span>
-        </span>
-      </button>
-      {mo && <div id="ss-pp-noi-dung" className="ss__pp-noi-dung">
+    <dialog ref={ref} className="hop-doi-soat" aria-labelledby="doi-soat-tieu-de" onClose={onClose}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="hop-doi-soat__dau">
+        <h2 id="doi-soat-tieu-de">Đối soát PP1/PP2/PP3 + kết hợp</h2>
+        <button type="button" className="nut nut--bieu-tuong" onClick={onClose} aria-label="Đóng"><IcDong /></button>
+      </div>
+      <p className={`ss__pp-tom hop-doi-soat__tom${coLech(pp.lech) ? ' ss__pp--lech' : ''}`}>
+        <span>Quy đổi <b>{dinhDangTong(pp.quyDoiChon)}</b></span>
+        <span>Cần bố trí <b>{dinhDangTong(pp.canBoTri)}</b></span>
+        <span className="ss__pp-tom-lech">Lệch <b>{dauLech(pp.lech)}{dinhDangTong(Math.abs(pp.lech))}</b></span>
+        <span className="ss__pp-tom-lech">{coLech(pp.lech) ? `${soLech} VTVL lệch` : 'Khớp'}</span>
+      </p>
+      <div className="hop-doi-soat__than">
       <p className="ss__pp-tong">
         <span className="ss__pp-nhan">Người quy đổi C3</span>
         {tong.map(([ten, v]) => <span key={ten} className="ss__pp-o"><b>{ten}</b> {dinhDangTong(v)}</span>)}
@@ -227,7 +286,7 @@ function TheoPP({ pp }: { pp: TongTheoPP }) {
         </table>
       </div>
       {pp.theoVtvl.length > 0 && (
-        <details className="ss__pp-chi-tiet">
+        <details className="ss__pp-chi-tiet" open>
           <summary>Từng VTVL ({pp.theoVtvl.length}{soLech > 0 ? `, ${soLech} lệch` : ''})</summary>
           {soLech > 0 && (
             <label className="ss__pp-loc"><input type="checkbox" checked={chiLech} onChange={(e) => setChiLech(e.target.checked)} /> Chỉ hiện VTVL lệch ({soLech})</label>
@@ -250,7 +309,7 @@ function TheoPP({ pp }: { pp: TongTheoPP }) {
           </div>
         </details>
       )}
-      </div>}
-    </div>
+      </div>
+    </dialog>
   );
 }

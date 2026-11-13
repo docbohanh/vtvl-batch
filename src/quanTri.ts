@@ -217,6 +217,67 @@ export function soSanhNguoi(b1: readonly DongQt[], c3: readonly DongQt[]): SoSan
   return { gioB1, nguoiB1, nguoiC3, chenh: nguoiB1 - nguoiC3, tyLe, muc };
 }
 
+/** Mức của một chỉ số thẩm định: tốt, cần giải trình/bổ sung, phải trả lại; null = không có dữ liệu để xét. */
+export type MucChiSo = 'tot' | 'chu_y' | 'xau' | null;
+
+export interface ChiSoThamDinh {
+  so: number;
+  ten: string;
+  /** Giá trị đã định dạng (ví dụ "93,3%"). */
+  giaTri: string;
+  /** Chi tiết tử/mẫu hoặc danh sách VTVL liên quan. */
+  chiTiet: string;
+  nguong: string;
+  muc: MucChiSo;
+}
+
+const DA_KIEM_CHUNG = 'Đã kiểm chứng';
+const UOC_LUONG_THUC_TE = 'Kiểm đếm, ước lượng thực tế';
+const chuoi = (v: unknown): string => String(v ?? '').trim();
+const chuanMa = (v: unknown): string => chuoi(v).toUpperCase();
+const phanTramChuoi = (t: number, m: number): string => (m > 0 ? `${dinhDangTong((t / m) * 100, 1)}%` : '—');
+
+/**
+ * Các chỉ số thẩm định tính được từ B1, C3 và C1 của chính hồ sơ (theo bộ 18 chỉ số của công cụ thẩm định; các chỉ số cần Nguồn 1/4/5 hay D2 không tính ở đây).
+ * Chỉ số 1 là cổng thật sự của kết luận (≥ 90% tốt; 70–90% bổ sung; < 70% trả lại); các chỉ số còn lại chỉ nêu chỗ phải giải trình.
+ * Dòng "đạt" lấy theo kết quả kiểm tra của cổng (trạng thái dòng OK).
+ */
+export function chiSoThamDinh(b1: readonly DongQt[], c3: readonly DongQt[], c1: readonly DongQt[] | null): ChiSoThamDinh[] {
+  const ra: ChiSoThamDinh[] = [];
+  const vtvlC1 = c1 ? new Set(c1.map((d) => chuanMa(d.duLieu.A)).filter(Boolean)) : null;
+  const vtvlC3 = new Set(c3.map((d) => chuanMa(d.duLieu.A)).filter(Boolean));
+
+  if (vtvlC1 && vtvlC1.size > 0) {
+    const du = new Set(c3.filter((d) => d.trangThai === 'OK' && chuoi(d.duLieu.L) === DA_KIEM_CHUNG).map((d) => chuanMa(d.duLieu.A)).filter((m) => vtvlC1.has(m)));
+    const tl = du.size / vtvlC1.size;
+    ra.push({ so: 1, ten: 'VTVL đủ căn cứ', giaTri: phanTramChuoi(du.size, vtvlC1.size), chiTiet: `${du.size} / ${vtvlC1.size} VTVL ở C1 có dòng C3 đạt và đã kiểm chứng`, nguong: '≥ 90% tốt · 70–90% bổ sung · < 70% trả lại', muc: tl >= 0.9 ? 'tot' : tl >= 0.7 ? 'chu_y' : 'xau' });
+  }
+  if (b1.length > 0) {
+    const dat = b1.filter((d) => d.trangThai === 'OK').length;
+    ra.push({ so: 2, ten: 'Dòng B1 đạt', giaTri: phanTramChuoi(dat, b1.length), chiTiet: `${dat} / ${b1.length} dòng B1`, nguong: '100%', muc: dat === b1.length ? 'tot' : 'chu_y' });
+    const uoc = b1.filter((d) => chuoi(d.duLieu.J) === UOC_LUONG_THUC_TE).length;
+    ra.push({ so: 3, ten: 'Dòng B1 ước lượng', giaTri: phanTramChuoi(uoc, b1.length), chiTiet: `${uoc} / ${b1.length} dòng ghi "Kiểm đếm, ước lượng thực tế"`, nguong: '> 70% cần kế hoạch kiểm chứng', muc: uoc / b1.length > 0.7 ? 'chu_y' : 'tot' });
+    const gioTong = tongCot(b1, 'G');
+    const gioBoSung = tongCot(b1, 'E');
+    if (gioTong > 0) ra.push({ so: 4, ten: 'Giờ bổ sung', giaTri: phanTramChuoi(gioBoSung, gioTong), chiTiet: `${dinhDangTong(gioBoSung, 0)} / ${dinhDangTong(gioTong, 0)} giờ (Σ cột E ÷ Σ cột G của B1)`, nguong: '> 30% giải trình', muc: gioBoSung / gioTong > 0.3 ? 'chu_y' : 'tot' });
+  }
+  const pp2 = c3.filter((d) => chuanPP(d.duLieu.B).split('+').includes('PP2'));
+  const g = pp2.reduce((t, d) => t + (soTuO(d.duLieu.G) ?? 0), 0);
+  if (g > 0) {
+    const j = pp2.reduce((t, d) => t + (soTuO(d.duLieu.J) ?? 0), 0);
+    ra.push({ so: 6, ten: 'Hệ số J/G (PP2)', giaTri: dinhDangTong(j / g), chiTiet: `Σ người cần bố trí ${dinhDangTong(j)} ÷ Σ người quy đổi PP2 ${dinhDangTong(g)}, trên các dòng C3 có PP2`, nguong: '> 1,3 giải trình', muc: j / g > 1.3 ? 'chu_y' : 'tot' });
+  }
+  if (vtvlC3.size > 0) {
+    const coPP3 = new Set(c3.filter((d) => chuanPP(d.duLieu.B).split('+').includes('PP3')).map((d) => chuanMa(d.duLieu.A)).filter(Boolean));
+    ra.push({ so: 11, ten: 'VTVL dùng PP3', giaTri: phanTramChuoi(coPP3.size, vtvlC3.size), chiTiet: `${coPP3.size} / ${vtvlC3.size} VTVL ở C3`, nguong: '> 40% giải trình', muc: coPP3.size / vtvlC3.size > 0.4 ? 'chu_y' : 'tot' });
+    const congViec = new Map<string, Set<string>>();
+    for (const d of b1) { const m = chuanMa(d.duLieu.B); if (m) congViec.set(m, (congViec.get(m) ?? new Set()).add(chuanMa(d.duLieu.A))); }
+    const manh = pp2.filter((d) => { const gg = soTuO(d.duLieu.G); return gg !== null && gg < 0.3 && (congViec.get(chuanMa(d.duLieu.A))?.size ?? 0) === 1; }).map((d) => chuoi(d.duLieu.A));
+    ra.push({ so: 10, ten: 'VTVL phân mảnh', giaTri: String(manh.length), chiTiet: manh.length > 0 ? `Người quy đổi < 0,3 và chỉ 1 công việc: ${manh.slice(0, 6).join(', ')}${manh.length > 6 ? '…' : ''}` : 'Không có VTVL nào dưới 0,3 người với một công việc', nguong: 'xem xét gộp', muc: manh.length > 0 ? 'chu_y' : 'tot' });
+  }
+  return ra.sort((a, b) => a.so - b.so);
+}
+
 /** Người quy đổi của một VTVL theo ba phương pháp ở C3 (PP1: cột H, PP2: cột G, PP3: cột I), kèm phương pháp đã chọn và người cần bố trí (cột J). */
 export interface NguoiTheoPP {
   ma: string;
