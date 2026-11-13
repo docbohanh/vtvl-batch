@@ -104,16 +104,21 @@ pub fn kiem_tra_tep(duong_dan: &str) -> Result<(PathBuf, u64), String> {
 pub async fn tham_dinh_excel(duong_dan: String, state: State<'_, AppState>) -> Result<KetQuaThamDinh, String> {
     let (excel, kich_thuoc) = kiem_tra_tep(&duong_dan)?;
     let lo = lay_lo(&state)?;
+    let ten = excel.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+    chay_tham_dinh(&lo, &excel, ten, kich_thuoc).await
+}
+
+/// Chạy bộ kiểm tra cục bộ trên một tệp Excel và dựng dữ liệu các biểu.
+pub(crate) async fn chay_tham_dinh(lo: &crate::Lo, excel: &Path, ten_tep: String, kich_thuoc: u64) -> Result<KetQuaThamDinh, String> {
     let s = &lo.cfg.settings;
     let script = if Path::new(&s.kiem_tra_script).is_absolute() { PathBuf::from(&s.kiem_tra_script) } else { lo.goc.join(&s.kiem_tra_script) };
     let dm = crate::danh_muc::tep_chung(&lo.root);
     let y = kiem_tra_local::YeuCau {
-        node: &s.node, script: &script, excel: &excel, mode: "workbook", form_key: None, ky: None, danh_muc: dm.is_file().then_some(dm.as_path()),
+        node: &s.node, script: &script, excel, mode: "workbook", form_key: None, ky: None, danh_muc: dm.is_file().then_some(dm.as_path()),
         timeout: Duration::from_secs(s.timeout_sec),
     };
     let (kq, _) = kiem_tra_local::chay(&y).await?;
-    let ten = excel.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
-    Ok(dung_ket_qua(&kq, ten, kich_thuoc))
+    Ok(dung_ket_qua(&kq, ten_tep, kich_thuoc))
 }
 
 #[cfg(test)]

@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import type { KetQuaKiemTraTep, KetQuaMa, SuaDonVi, TinhTrangKhoa, ThemDonVi, DonVi, DongDem, KetQuaGui, KetQuaXoa, CayDonVi, YeuCauTao, KetQuaTao, DongBaoCao, TongQuan, DanhSachQt, KyQt, TomTatBieuQt, DuLieuBieuQt, TinhTrangTaiKhoanQt, KetQuaCapNhat, KetQuaThamDinh } from './types';
+import type { KetQuaKiemTraTep, KetQuaMa, SuaDonVi, TinhTrangKhoa, ThemDonVi, DonVi, DongDem, KetQuaGui, KetQuaXoa, CayDonVi, YeuCauTao, KetQuaTao, DongBaoCao, TongQuan, DanhSachQt, KyQt, TomTatBieuQt, DuLieuBieuQt, TinhTrangTaiKhoanQt, KetQuaCapNhat, KetQuaThamDinh, ThongTinTdv, DanhSachTdv, TaiKhoanDaLuuQt } from './types';
 
 /** Lời gọi tới các lệnh Tauri (`src-tauri/src/main.rs`). Lỗi trả về là chuỗi tiếng Việt từ phía Rust. */
 export const api = {
@@ -28,6 +28,9 @@ export const api = {
   tqTao: (yeuCau: YeuCauTao, themVaoLo: boolean) => invoke<KetQuaTao>('tq_tao', { yeuCau, themVaoLo }),
   tqXuatExcel: (hang: DongBaoCao[], tenTep: string) => invoke<string>('tq_xuat_excel', { hang, tenTep }),
   qtTaiKhoan: () => invoke<TinhTrangTaiKhoanQt>('qt_tai_khoan'),
+  qtDsTaiKhoanDaLuu: () => invoke<TaiKhoanDaLuuQt[]>('qt_ds_tai_khoan_da_luu'),
+  qtChuyenTaiKhoan: (tenDangNhap: string) => invoke<TinhTrangTaiKhoanQt>('qt_chuyen_tai_khoan', { tenDangNhap }),
+  qtXoaTaiKhoanDaLuu: (tenDangNhap: string) => invoke<TaiKhoanDaLuuQt[]>('qt_xoa_tai_khoan_da_luu', { tenDangNhap }),
   qtDatTaiKhoan: (tenDangNhap: string, matKhau: string) => invoke<TinhTrangTaiKhoanQt>('qt_dat_tai_khoan', { tenDangNhap, matKhau }),
   qtDanhSach: (lamMoi: boolean, kyId?: string) => invoke<DanhSachQt>('qt_danh_sach', { lamMoi, kyId: kyId ?? null }),
   qtCacKy: () => invoke<KyQt[]>('qt_cac_ky'),
@@ -35,6 +38,8 @@ export const api = {
   qtBieu: (idHoSo: string, khoa: string) => invoke<DuLieuBieuQt>('qt_bieu', { idHoSo, khoa }),
   qtXuatExcel: (idHoSo: string, duongDan: string) => invoke<string>('qt_xuat_excel', { idHoSo, duongDan }),
   thamDinhExcel: (duongDan: string) => invoke<KetQuaThamDinh>('tham_dinh_excel', { duongDan }),
+  tdvThongTin: () => invoke<ThongTinTdv>('tdv_thong_tin'),
+  tdvDanhSach: (donViId: string, kyId: string) => invoke<DanhSachTdv>('tdv_danh_sach', { donViId, kyId }),
   kiemTraCapNhat: () => invoke<KetQuaCapNhat>('kiem_tra_cap_nhat'),
   moTrangTai: (url: string) => invoke<void>('mo_trang_tai', { url }),
   bcCayTrangThai: () => invoke<string | null>('bc_cay_trang_thai'),

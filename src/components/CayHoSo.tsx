@@ -29,11 +29,14 @@ export function CayHoSo({ hang, chon, onChon, onDoi }: CayHoSoProps) {
               <button type="button" className="cay__ten" onClick={() => { if (h.hoSo) onChon(h.hoSo.id); else onDoi(h.id); }} title={h.ten}>
                 <span className="cay__ten-chu">{h.ten}</span>
                 {h.hoSo && <span className="cay__phu" title={h.hoSo.taiKhoan.join(', ')}>{h.hoSo.taiKhoan[0] ?? 'chưa có tài khoản'}{h.hoSo.taiKhoan.length > 1 ? ` +${h.hoSo.taiKhoan.length - 1}` : ''}</span>}
+                {h.hoSo && (
+                  <span className="cay__tien" role="img" aria-label={`Tiến độ ${h.hoSo.tienDo}%`}>
+                    <span className="cay__tien-thanh"><i style={{ width: `${Math.min(100, h.hoSo.tienDo)}%` }} /></span>
+                    <b>{h.hoSo.tienDo}%</b>
+                  </span>
+                )}
               </button>
               <span className="cay__so">
-                {h.hoSo && (
-                  <span className="qt__tien-do" role="img" aria-label={`Tiến độ ${h.hoSo.tienDo}%`}><i style={{ width: `${Math.min(100, h.hoSo.tienDo)}%` }} /></span>
-                )}
                 {h.chuaDat > 0 && <span className="qt__chua-dat" title={`${h.chuaDat} dòng chưa đạt${h.coCon ? ' trong nhánh' : ''}`}>{h.chuaDat}</span>}
                 {h.coCon && <span className="cay__dem" title={`${h.soHoSo} hồ sơ trong nhánh`}>{h.soHoSo}</span>}
               </span>

@@ -37,7 +37,7 @@ export function ThamDinhExcelPage({ kq, dangChay, loi, lanNap, onChonTep, onVe }
           <p>Chọn một tệp bộ biểu .xlsx để xem và kiểm tra độc lập ngay trên máy: không đăng nhập, không gửi gì lên cổng, kết quả không được lưu.</p>
           <div className="nhom-nut">
             <button type="button" className="nut nut--chinh" onClick={onChonTep}><IcKiemTra /> Chọn tệp Excel</button>
-            <button type="button" className="nut" onClick={onVe}>← Về Quản trị</button>
+            <button type="button" className="nut" onClick={onVe}>← Quay lại</button>
           </div>
         </div>
       )}
@@ -56,7 +56,7 @@ export function ThamDinhExcelPage({ kq, dangChay, loi, lanNap, onChonTep, onVe }
             nut={() => (
               <>
                 <button type="button" className="nut" onClick={onChonTep} disabled={dangChay}><IcKiemTra /> Chọn tệp khác</button>
-                <button type="button" className="nut nut--chinh" onClick={onVe}>← Về Quản trị</button>
+                <button type="button" className="nut nut--chinh" onClick={onVe}>← Quay lại</button>
               </>
             )}
           />

@@ -36,6 +36,9 @@ pub struct Ky {
     pub den_ngay: String,
     #[serde(rename = "trangThai")]
     pub trang_thai: String,
+    /// Hạn gửi hồ sơ của kỳ (ngày `yyyy-mm-dd`); cache cũ chưa có thì rỗng.
+    #[serde(default, rename = "hanGui")]
+    pub han_gui: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -132,13 +135,20 @@ pub const KHONG_CO_KY_MO: &str = "Cổng không có kỳ kê khai nào đang m�
 const KHONG_PHAI_QUAN_TRI: &str = "Tài khoản này không có vai trò Quản trị hệ thống (SYSTEM_ADMIN)";
 
 /// Phản hồi `/auth/me` có vai trò quản trị hệ thống không.
+pub const KHONG_CO_DON_VI: &str = "Tài khoản này không phải Quản trị hệ thống và chưa được phân công đơn vị nào";
+
+/// Các đơn vị được phân công của tài khoản (`/auth/me`.orgUnits): (id, mã, tên). Thuần.
+pub fn don_vi_duoc_phan_cong(me: &Value) -> Vec<(String, String, String)> {
+    me["orgUnits"].as_array().into_iter().flatten().map(|u| (chuoi(u, "id"), chuoi(u, "code"), chuoi(u, "name"))).filter(|(id, _, _)| !id.is_empty()).collect()
+}
+
 pub fn la_quan_tri(me: &Value) -> bool {
     me["roles"].as_array().is_some_and(|r| r.iter().any(|x| x["role"].as_str() == Some("SYSTEM_ADMIN")))
 }
 
 /// Đọc một kỳ từ phản hồi `/periods`.
 pub fn doc_ky(k: &Value) -> Ky {
-    Ky { id: chuoi(k, "id"), ma: chuoi(k, "code"), ten: chuoi(k, "name"), tu_ngay: chuoi(k, "dateFrom"), den_ngay: chuoi(k, "dateTo"), trang_thai: chuoi(k, "status") }
+    Ky { id: chuoi(k, "id"), ma: chuoi(k, "code"), ten: chuoi(k, "name"), tu_ngay: chuoi(k, "dateFrom"), den_ngay: chuoi(k, "dateTo"), trang_thai: chuoi(k, "status"), han_gui: chuoi(k, "submissionDeadline") }
 }
 
 /// Mọi kỳ của cổng, kỳ đang mở đứng trước rồi đến kỳ mới hơn. Thuần.
@@ -361,8 +371,8 @@ pub fn tai_khoan_dang_dung(lo: &crate::Lo) -> Option<(TaiKhoanQuanTri, Nguon)> {
 }
 
 /// Ghi tài khoản quản trị ra tệp (quyền 600 trên Unix). Tệp nằm trong `data/` (đã loại khỏi git).
-fn ghi_tai_khoan(duong_dan: &std::path::Path, username: &str, mat_khau: &str) -> Result<(), String> {
-    crate::lo::ghi_json(duong_dan, &serde_json::json!({"username": username, "password": mat_khau}))?;
+fn ghi_tai_khoan(duong_dan: &std::path::Path, username: &str, mat_khau: &str, vai_tro: &str) -> Result<(), String> {
+    crate::lo::ghi_json(duong_dan, &serde_json::json!({"username": username, "password": mat_khau, "vaiTro": vai_tro}))?;
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
@@ -377,12 +387,24 @@ pub struct TinhTrangTaiKhoan {
     #[serde(rename = "tenDangNhap")]
     pub ten_dang_nhap: String,
     pub nguon: Option<Nguon>,
+    /// `quan_tri` (Quản trị hệ thống: quét mọi đơn vị) hoặc `truong_don_vi` (tài khoản thường quản lý các đơn vị cấp dưới).
+    #[serde(rename = "vaiTro")]
+    pub vai_tro: &'static str,
+}
+
+pub const VAI_TRO_QUAN_TRI: &str = "quan_tri";
+pub const VAI_TRO_TRUONG_DON_VI: &str = "truong_don_vi";
+
+/// Vai trò đã lưu cùng tài khoản thiết lập trong ứng dụng; tài khoản lấy từ tệp lô luôn là quản trị.
+fn vai_tro_da_luu(lo: &crate::Lo) -> &'static str {
+    let v: Option<serde_json::Value> = crate::lo::doc_json(&tep_tai_khoan(lo)).ok();
+    if v.as_ref().and_then(|x| x["vaiTro"].as_str()) == Some(VAI_TRO_TRUONG_DON_VI) { VAI_TRO_TRUONG_DON_VI } else { VAI_TRO_QUAN_TRI }
 }
 
 fn tinh_trang(lo: &crate::Lo) -> TinhTrangTaiKhoan {
     match tai_khoan_dang_dung(lo) {
-        Some((q, n)) => TinhTrangTaiKhoan { ten_dang_nhap: q.username, nguon: Some(n) },
-        None => TinhTrangTaiKhoan { ten_dang_nhap: String::new(), nguon: None },
+        Some((q, n)) => TinhTrangTaiKhoan { ten_dang_nhap: q.username, nguon: Some(n), vai_tro: if n == Nguon::UngDung { vai_tro_da_luu(lo) } else { VAI_TRO_QUAN_TRI } },
+        None => TinhTrangTaiKhoan { ten_dang_nhap: String::new(), nguon: None, vai_tro: VAI_TRO_QUAN_TRI },
     }
 }
 
@@ -392,34 +414,130 @@ pub fn qt_tai_khoan(state: State<'_, AppState>) -> Result<TinhTrangTaiKhoan, Str
     Ok(tinh_trang(&*lay_lo(&state)?))
 }
 
-/// Thiết lập tài khoản quản trị mới: đăng nhập thử và phải có vai trò SYSTEM_ADMIN thì mới lưu; phiên cũ bị bỏ.
+/// Thiết lập tài khoản mới: đăng nhập thử. Có vai trò SYSTEM_ADMIN thì là tài khoản quản trị; không thì phải được phân công ít nhất một đơn vị
+/// (tài khoản trưởng đơn vị, quản lý các đơn vị cấp dưới) mới lưu. Phiên cũ bị bỏ.
 /// Giao diện gọi tiếp `qt_danh_sach(true)` để quét lại cây đơn vị.
 #[tauri::command]
 pub async fn qt_dat_tai_khoan(ten_dang_nhap: String, mat_khau: String, state: State<'_, AppState>) -> Result<TinhTrangTaiKhoan, String> {
     let lo = lay_lo(&state)?;
+    dang_nhap_va_luu(&state, &lo, &ten_dang_nhap, &mat_khau).await
+}
+
+async fn dang_nhap_va_luu(state: &AppState, lo: &crate::Lo, ten_dang_nhap: &str, mat_khau: &str) -> Result<TinhTrangTaiKhoan, String> {
     let ten = ten_dang_nhap.trim().to_string();
+    let mat_khau = mat_khau.to_string();
     if ten.is_empty() || mat_khau.is_empty() {
         return Err("Nhập đủ tên đăng nhập và mật khẩu của tài khoản quản trị".into());
     }
     let qt = TaiKhoanQuanTri { username: ten.clone(), password: mat_khau.clone() };
-    let s = crate::mo_phien_voi(&lo, &qt).await?;
+    let s = crate::mo_phien_voi(lo, &qt).await?;
     let me = s.get_json("/auth/me", &[]).await.map_err(loi)?;
-    if !la_quan_tri(&me) {
-        return Err(KHONG_PHAI_QUAN_TRI.into());
-    }
-    ghi_tai_khoan(&tep_tai_khoan(&lo), &ten, &mat_khau)?;
+    let vai_tro = if la_quan_tri(&me) { VAI_TRO_QUAN_TRI } else if !don_vi_duoc_phan_cong(&me).is_empty() { VAI_TRO_TRUONG_DON_VI } else { return Err(KHONG_CO_DON_VI.into()) };
+    ghi_tai_khoan(&tep_tai_khoan(lo), &ten, &mat_khau, vai_tro)?;
+    // nhớ để chuyển nhanh lần sau không phải gõ lại mật khẩu
+    let moi = TaiKhoanLuu { username: ten.clone(), password: mat_khau.clone(), vai_tro: vai_tro.to_string(), ho_ten: me["user"]["fullName"].as_str().unwrap_or_default().to_string(), lan_cuoi: crate::lo::bay_gio() };
+    let _ = ghi_ds_da_luu(&tep_ds_da_luu(lo), &nap_vao_ds(doc_ds_da_luu(lo), moi));
     *state.phien_quan_tri.lock().await = Some(s);
     let mut e = crate::lo::su_kien("quan_tri_dat_tai_khoan");
     e.ket_qua = Some("ok");
     let _ = crate::lo::ghi_nhat_ky(&lo.root.join("_chung"), &e);
-    Ok(tinh_trang(&lo))
+    Ok(tinh_trang(lo))
+}
+
+// ---------------------------------------------------------------------------
+// Tài khoản đã đăng nhập thành công: nhớ để chuyển nhanh
+// ---------------------------------------------------------------------------
+
+/// Tài khoản đã đăng nhập thử thành công, nhớ trên máy này để chuyển nhanh (mật khẩu chỉ nằm trong tệp, không bao giờ trả về giao diện).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+struct TaiKhoanLuu {
+    username: String,
+    password: String,
+    #[serde(default, rename = "vaiTro")]
+    vai_tro: String,
+    #[serde(default, rename = "hoTen")]
+    ho_ten: String,
+    #[serde(default, rename = "lanCuoi")]
+    lan_cuoi: String,
+}
+
+/// Dòng gửi giao diện: không có mật khẩu.
+#[derive(Debug, Serialize, PartialEq)]
+pub struct TaiKhoanDaLuu {
+    #[serde(rename = "tenDangNhap")]
+    pub ten_dang_nhap: String,
+    #[serde(rename = "vaiTro")]
+    pub vai_tro: String,
+    #[serde(rename = "hoTen")]
+    pub ho_ten: String,
+    #[serde(rename = "lanCuoi")]
+    pub lan_cuoi: String,
+}
+
+fn tep_ds_da_luu(lo: &crate::Lo) -> std::path::PathBuf {
+    lo.root.join("_chung").join("tai-khoan-da-luu.json")
+}
+
+fn doc_ds_da_luu(lo: &crate::Lo) -> Vec<TaiKhoanLuu> {
+    crate::lo::doc_json::<Vec<TaiKhoanLuu>>(&tep_ds_da_luu(lo)).unwrap_or_default()
+}
+
+/// Đưa tài khoản vừa đăng nhập lên đầu danh sách, thay bản cũ cùng tên đăng nhập (không phân biệt hoa thường). Thuần.
+fn nap_vao_ds(ds: Vec<TaiKhoanLuu>, moi: TaiKhoanLuu) -> Vec<TaiKhoanLuu> {
+    let ten = moi.username.to_lowercase();
+    std::iter::once(moi).chain(ds.into_iter().filter(|t| t.username.to_lowercase() != ten)).collect()
+}
+
+/// Ghi danh sách (quyền 600 trên Unix, vì có mật khẩu). Tệp nằm trong `data/` (đã loại khỏi git).
+fn ghi_ds_da_luu(duong_dan: &std::path::Path, ds: &[TaiKhoanLuu]) -> Result<(), String> {
+    crate::lo::ghi_json(duong_dan, &ds)?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = std::fs::set_permissions(duong_dan, std::fs::Permissions::from_mode(0o600));
+    }
+    Ok(())
+}
+
+/// Các tài khoản đã nhớ, mới dùng gần nhất đứng đầu. Không kèm mật khẩu.
+#[tauri::command]
+pub fn qt_ds_tai_khoan_da_luu(state: State<'_, AppState>) -> Result<Vec<TaiKhoanDaLuu>, String> {
+    let lo = lay_lo(&state)?;
+    // tài khoản đang dùng từ trước khi có tính năng này: nhớ luôn để hiện trong danh sách
+    if let Some((q, Nguon::UngDung)) = tai_khoan_dang_dung(&lo) {
+        let ds = doc_ds_da_luu(&lo);
+        if !ds.iter().any(|t| t.username.to_lowercase() == q.username.to_lowercase()) {
+            let moi = TaiKhoanLuu { username: q.username, password: q.password, vai_tro: vai_tro_da_luu(&lo).to_string(), ho_ten: String::new(), lan_cuoi: crate::lo::bay_gio() };
+            let _ = ghi_ds_da_luu(&tep_ds_da_luu(&lo), &nap_vao_ds(ds, moi));
+        }
+    }
+    Ok(doc_ds_da_luu(&lo).into_iter().map(|t| TaiKhoanDaLuu { ten_dang_nhap: t.username, vai_tro: t.vai_tro, ho_ten: t.ho_ten, lan_cuoi: t.lan_cuoi }).collect())
+}
+
+/// Chuyển sang một tài khoản đã nhớ bằng mật khẩu đã lưu (đăng nhập lại để kiểm tra còn dùng được). Mật khẩu đã đổi thì báo lỗi để nhập lại.
+#[tauri::command]
+pub async fn qt_chuyen_tai_khoan(ten_dang_nhap: String, state: State<'_, AppState>) -> Result<TinhTrangTaiKhoan, String> {
+    let lo = lay_lo(&state)?;
+    let ten = ten_dang_nhap.trim().to_lowercase();
+    let t = doc_ds_da_luu(&lo).into_iter().find(|t| t.username.to_lowercase() == ten).ok_or("Tài khoản này chưa được nhớ trên máy")?;
+    dang_nhap_va_luu(&state, &lo, &t.username, &t.password).await
+}
+
+/// Quên một tài khoản đã nhớ (không đăng xuất tài khoản đang dùng).
+#[tauri::command]
+pub fn qt_xoa_tai_khoan_da_luu(ten_dang_nhap: String, state: State<'_, AppState>) -> Result<Vec<TaiKhoanDaLuu>, String> {
+    let lo = lay_lo(&state)?;
+    let ten = ten_dang_nhap.trim().to_lowercase();
+    let con: Vec<TaiKhoanLuu> = doc_ds_da_luu(&lo).into_iter().filter(|t| t.username.to_lowercase() != ten).collect();
+    ghi_ds_da_luu(&tep_ds_da_luu(&lo), &con)?;
+    Ok(con.into_iter().map(|t| TaiKhoanDaLuu { ten_dang_nhap: t.username, vai_tro: t.vai_tro, ho_ten: t.ho_ten, lan_cuoi: t.lan_cuoi }).collect())
 }
 
 pub(crate) fn tep_cache(lo: &crate::Lo) -> std::path::PathBuf {
     lo.root.join("_chung").join("quan-tri.json")
 }
 
-fn dung_ma_ho_so(id: &str) -> Result<(), String> {
+pub(crate) fn dung_ma_ho_so(id: &str) -> Result<(), String> {
     if !id.is_empty() && id.len() <= 64 && id.chars().all(|c| c.is_ascii_hexdigit() || c == '-') { Ok(()) } else { Err("Mã hồ sơ không hợp lệ".into()) }
 }
 
@@ -477,25 +595,44 @@ pub async fn qt_bieu(id_ho_so: String, khoa: String, state: State<'_, AppState>)
 /// Xuất bộ biểu theo mẫu B30K của một hồ sơ (đọc từ cổng) ra tệp Excel `duong_dan`; trả lại đường dẫn đã ghi.
 #[tauri::command]
 pub async fn qt_xuat_excel(id_ho_so: String, duong_dan: String, state: State<'_, AppState>) -> Result<String, String> {
-    dung_ma_ho_so(&id_ho_so)?;
     let mut dich = std::path::PathBuf::from(duong_dan.trim());
     if dich.as_os_str().is_empty() { return Err("Chưa chọn nơi lưu tệp".into()); }
     if dich.extension().is_none_or(|e| !e.eq_ignore_ascii_case("xlsx")) { dich.set_extension("xlsx"); }
-    let lo = lay_lo(&state)?;
-    let s = phien(&state, &lo, false).await?;
+    xuat_ho_so(&state, &id_ho_so, &dich).await?;
+    Ok(dich.to_string_lossy().into_owned())
+}
+
+/// Đọc mọi biểu của hồ sơ từ cổng (bằng phiên đang dùng) rồi ghi bộ biểu B30K ra `dich`.
+pub(crate) async fn xuat_ho_so(state: &AppState, id_ho_so: &str, dich: &std::path::Path) -> Result<(), String> {
+    dung_ma_ho_so(id_ho_so)?;
+    let lo = lay_lo(state)?;
+    let s = phien(state, &lo, false).await?;
     let mut cac = Vec::new();
-    for b in chi_tiet_ho_so(&s, &id_ho_so).await? { cac.push(doc_bieu_day_du(&s, &id_ho_so, &b.khoa).await?); }
+    for b in chi_tiet_ho_so(&s, id_ho_so).await? { cac.push(doc_bieu_day_du(&s, id_ho_so, &b.khoa).await?); }
     if let Some(b) = cac.iter().find(|b| b.bi_cat) { return Err(format!("Biểu {} quá lớn, chỉ đọc được một phần nên không xuất để tránh thiếu dữ liệu", b.bieu.ma)); }
     let ks = &lo.cfg.settings.kiem_tra_script;
     let script = if std::path::Path::new(ks).is_absolute() { std::path::PathBuf::from(ks) } else { lo.goc.join(ks) };
-    crate::xuat_b30k::xuat(&lo.cfg.settings.node, &script, &cac, &dich).await?;
-    Ok(dich.to_string_lossy().into_owned())
+    crate::xuat_b30k::xuat(&lo.cfg.settings.node, &script, &cac, dich).await
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn nap_vao_ds_dua_len_dau_va_thay_ban_cu_khong_phan_biet_hoa_thuong() {
+        let t = |u: &str, mk: &str| TaiKhoanLuu { username: u.into(), password: mk.into(), vai_tro: String::new(), ho_ten: String::new(), lan_cuoi: String::new() };
+        let ds = nap_vao_ds(vec![t("a", "1"), t("B", "2")], t("b", "3"));
+        assert_eq!(ds.iter().map(|x| (x.username.as_str(), x.password.as_str())).collect::<Vec<_>>(), [("b", "3"), ("a", "1")]);
+    }
+
+    #[test]
+    fn don_vi_duoc_phan_cong_doc_org_units_va_bo_muc_thieu_id() {
+        let me = json!({"orgUnits": [{"id": "a", "code": "X.1", "name": "Ban A"}, {"code": "Y"}]});
+        assert_eq!(don_vi_duoc_phan_cong(&me), vec![("a".to_string(), "X.1".to_string(), "Ban A".to_string())]);
+        assert!(don_vi_duoc_phan_cong(&json!({})).is_empty());
+    }
 
     #[test]
     fn cac_ky_dua_ky_mo_len_dau_roi_ky_moi_hon() {
@@ -567,7 +704,7 @@ mod tests {
     fn tai_khoan_ghi_ra_tep_doc_lai_duoc_va_tep_uu_tien_hon_lo() {
         let dir = std::env::temp_dir().join(format!("vtvl_qt_{}", std::process::id()));
         let f = dir.join("_chung").join(TEP_TAI_KHOAN);
-        ghi_tai_khoan(&f, "quantri_x", "Mk@123").unwrap();
+        ghi_tai_khoan(&f, "quantri_x", "Mk@123", VAI_TRO_TRUONG_DON_VI).unwrap();
         let q: TaiKhoanQuanTri = crate::lo::doc_json(&f).unwrap();
         assert_eq!((q.username.as_str(), q.password.as_str()), ("quantri_x", "Mk@123"));
         #[cfg(unix)]

@@ -78,8 +78,8 @@ export const BangBieu = memo(function BangBieu({ du }: BangBieuProps) {
           </label>
         )}
         {ch.locNam && cacNamCo.length > 0 && (
-          <fieldset className="bb__nam" aria-label="Lọc theo năm">
-            <legend className="bb__phu">Năm</legend>
+          <div className="bb__nam" role="group" aria-label="Lọc theo năm">
+            <span className="bb__phu">Năm</span>
             <label className={`loc-hop${namChon.length === 0 ? ' loc-hop--chon' : ''}`}>
               <input type="checkbox" checked={namChon.length === 0} onChange={() => { setNamChon([]); setSoHien(BUOC_HIEN); }} />Tất cả
             </label>
@@ -88,7 +88,7 @@ export const BangBieu = memo(function BangBieu({ du }: BangBieuProps) {
                 <input type="checkbox" checked={namChon.includes(n)} onChange={() => { setNamChon((cu) => doiNam(cu, n, cacNamCo)); setSoHien(BUOC_HIEN); }} />{n}
               </label>
             ))}
-          </fieldset>
+          </div>
         )}
         {ch.soNguoi && (
           <p className="bb__uoc-tinh" role="status" title={`Ước tính = tổng giờ (cột ${ch.soNguoi.cotGio}) ÷ ${GIO_MOT_NGUOI_NAM}, tính trên các dòng đang hiện`}>

@@ -10,12 +10,14 @@ const NHAN_TRANG_THAI: Record<string, string> = { DRAFT: 'Đang kê khai', SUBMI
 
 export interface HoSoQuanTriProps {
   hoSo: HoSoQt;
-  /** Mở thẻ đơn vị (hỏi tài khoản và mật khẩu nếu đơn vị chưa có trong lô). */
-  onQuanTri: (hoSo: HoSoQt) => void;
+  /** Mở thẻ đơn vị (hỏi tài khoản và mật khẩu nếu đơn vị chưa có trong lô). Không truyền thì ẩn nút "Quản trị" (tài khoản trưởng đơn vị). */
+  onQuanTri?: (hoSo: HoSoQt) => void;
+  /** Có thì hiện nút quay lại danh sách. */
+  onVe?: () => void;
 }
 
 /** Chi tiết một hồ sơ trên cổng: đọc danh sách biểu và từng biểu từ cổng, kèm xuất Excel, tải lại và mở thẻ đơn vị. */
-export function HoSoQuanTri({ hoSo, onQuanTri }: HoSoQuanTriProps) {
+export function HoSoQuanTri({ hoSo, onQuanTri, onVe }: HoSoQuanTriProps) {
   const [dangXuat, setDangXuat] = useState(false);
   const [ketQuaXuat, setKetQuaXuat] = useState<{ ok: boolean; noiDung: string } | null>(null);
   const layDanhSach = useCallback(() => api.qtChiTiet(hoSo.id), [hoSo.id]);
@@ -58,10 +60,13 @@ export function HoSoQuanTri({ hoSo, onQuanTri }: HoSoQuanTriProps) {
           <button type="button" className="nut" onClick={taiLai} disabled={!bieuChon || dangTai} title="Đọc lại biểu đang xem từ cổng">
             <IcLamMoi /> Tải lại biểu
           </button>
-          <button type="button" className="nut nut--chinh" onClick={() => onQuanTri(hoSo)}
-            title="Mở thẻ đơn vị: đăng nhập, Excel, chuẩn bị, gửi… (đơn vị chưa có trong lô thì nhập tài khoản và mật khẩu)">
-            <IcNguoi /> Quản trị
-          </button>
+          {onQuanTri && (
+            <button type="button" className="nut nut--chinh" onClick={() => onQuanTri(hoSo)}
+              title="Mở thẻ đơn vị: đăng nhập, Excel, chuẩn bị, gửi… (đơn vị chưa có trong lô thì nhập tài khoản và mật khẩu)">
+              <IcNguoi /> Quản trị
+            </button>
+          )}
+          {onVe && <button type="button" className="nut nut--chinh" onClick={onVe}>← Danh sách đơn vị</button>}
         </>
       )}
     />

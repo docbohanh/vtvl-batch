@@ -94,7 +94,7 @@ export interface BuocTongQuan { buoc: number; tieuDe: string; xong: number; dang
 export interface TongQuan { chao: string; donVi: string; ky: string; kpis: KpiTongQuan[]; buoc: BuocTongQuan[]; capNhat: string }
 
 /** Quản trị: tài khoản và hồ sơ của kỳ hiện tại quét từ cổng (lưu cache cục bộ). */
-export interface KyQt { id: string; ma: string; ten: string; tuNgay: string; denNgay: string; trangThai: string }
+export interface KyQt { id: string; ma: string; ten: string; tuNgay: string; denNgay: string; trangThai: string; /** Hạn gửi hồ sơ (yyyy-mm-dd); bản lưu cũ chưa có thì rỗng. */ hanGui?: string }
 export interface TaiKhoanQt { tenDangNhap: string; hoTen: string; orgId: string; trangThai: string; dangNhapCuoi: string }
 export interface HoSoQt {
   id: string; orgId: string; ma: string; ten: string; cap: string; trangThai: string; tienDo: number; capNhat: string;
@@ -109,7 +109,7 @@ export interface DongQt { so: number; duLieu: Record<string, unknown>; trangThai
 export interface DuLieuBieuQt { bieu: BieuQt; trangThai: string; tong: number; dongDat: number; dongChuaDat: number; canhBao: number; dong: DongQt[]; biCat: boolean }
 
 /** Tài khoản quản trị đang dùng (không bao giờ kèm mật khẩu). `nguon`: thiết lập trong ứng dụng, hoặc lấy từ tệp JSON của lô; null = chưa có. */
-export interface TinhTrangTaiKhoanQt { tenDangNhap: string; nguon: 'ung_dung' | 'lo' | null }
+export interface TinhTrangTaiKhoanQt { tenDangNhap: string; nguon: 'ung_dung' | 'lo' | null; /** `truong_don_vi`: tài khoản thường quản lý các đơn vị cấp dưới (không phải Quản trị hệ thống). */ vaiTro: 'quan_tri' | 'truong_don_vi' }
 
 /** Kết quả kiểm tra bản mới (`kiem_tra_cap_nhat`). */
 export interface KetQuaCapNhat {
@@ -122,3 +122,13 @@ export interface KetQuaCapNhat {
 
 /** Kết quả `tham_dinh_excel`: mọi biểu có trong tệp, cùng dạng với biểu đọc từ cổng. */
 export interface KetQuaThamDinh { tenTep: string; kichThuoc: number; tongDong: number; dongLoi: number; canhBao: string[]; bieu: DuLieuBieuQt[] }
+
+/** Đơn vị được phân công cho tài khoản trưởng đơn vị. */
+export interface DonViChonQt { id: string; ma: string; ten: string }
+/** Sau đăng nhập: đơn vị được phân công và các kỳ để chọn. */
+export interface ThongTinTdv { hoTen: string; donVi: DonViChonQt[]; ky: KyQt[] }
+/** Hồ sơ các đơn vị cấp dưới trực tiếp của một đơn vị trong một kỳ. */
+export interface DanhSachTdv { quetLuc: string; ky: KyQt; donVi: DonViChonQt; hoSo: HoSoQt[] }
+
+/** Tài khoản đã đăng nhập thành công và được nhớ trên máy để chuyển nhanh (không kèm mật khẩu). */
+export interface TaiKhoanDaLuuQt { tenDangNhap: string; vaiTro: 'quan_tri' | 'truong_don_vi' | string; hoTen: string; lanCuoi: string }

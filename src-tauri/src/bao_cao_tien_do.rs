@@ -184,7 +184,7 @@ mod tests {
         let nut = |id: &str, cha: Option<&str>| NutQt { id: id.into(), ma: id.into(), ten: id.into(), cha_id: cha.map(String::from) };
         let ds = DanhSach {
             quet_luc: "x".into(),
-            ky: crate::quan_tri::Ky { id: "k".into(), ma: "k".into(), ten: "k".into(), tu_ngay: "".into(), den_ngay: "".into(), trang_thai: "".into() },
+            ky: crate::quan_tri::Ky { id: "k".into(), ma: "k".into(), ten: "k".into(), tu_ngay: "".into(), den_ngay: "".into(), trang_thai: "".into(), han_gui: "".into() },
             tai_khoan: vec![],
             ho_so: vec![hs("1", "con1", 40, 5, 0), hs("2", "con2", 100, 5, 0), hs("3", "lac", 0, 0, 0)],
             bieu: vec![],

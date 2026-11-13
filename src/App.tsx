@@ -4,6 +4,7 @@ import logoCo from './assets/logo-co.png';
 import { docLichSu, ghiLichSu, themLichSu, type MucLichSu } from './lichSuLo';
 import { DangNhapDonViDialog } from './components/DangNhapDonViDialog';
 import { open } from '@tauri-apps/plugin-dialog';
+import { TruongDonViPage } from './components/TruongDonViPage';
 import { ThamDinhExcelPage } from './components/ThamDinhExcelPage';
 import { CapNhatPhienBan } from './components/CapNhatPhienBan';
 import { BaoCaoMenu } from './components/BaoCaoMenu';
@@ -152,7 +153,7 @@ export default function App() {
                   <IcKiemTra /> Thẩm định Excel
                 </button>
               </div>
-              <BaoCaoMenu />
+              {tkQuanTri?.vaiTro !== 'truong_don_vi' && <BaoCaoMenu />}
               <CapNhatPhienBan />
               <TaiKhoanQuanTri tinhTrang={tkQuanTri} onXong={(tt) => { setTkQuanTri(tt); setLanDoiTaiKhoan((n) => n + 1); }} />
             </>
@@ -174,7 +175,9 @@ export default function App() {
         </div>
       )}
       <div className="trang-khung" hidden={trang !== 'quan_tri'}>
-        <QuanTriPage daNapLo={daNapLo} lanDoiTaiKhoan={lanDoiTaiKhoan} onQuanTri={moDonVi} />
+        {tkQuanTri?.vaiTro === 'truong_don_vi'
+          ? <TruongDonViPage tinhTrang={tkQuanTri} lanDoiTaiKhoan={lanDoiTaiKhoan} />
+          : tkQuanTri && <QuanTriPage daNapLo={daNapLo} lanDoiTaiKhoan={lanDoiTaiKhoan} onQuanTri={moDonVi} />}
       </div>
       {trang === 'lo' && (
         <div className="trang-khung trang-khung--cuon">
