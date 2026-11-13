@@ -784,3 +784,41 @@ button.cay__mui:hover { color: var(--chinh); background: var(--chinh-nen); }
 .cay__tien-thanh { flex: 1; min-width: 0; height: 6px; background: var(--vien); border-radius: 3px; overflow: hidden; }
 .cay__tien-thanh i { display: block; height: 100%; background: var(--tot); border-radius: 3px; }
 .cay__tien b { flex: none; min-width: 34px; text-align: right; font-size: 0.7rem; font-weight: 600; color: var(--chu-phu); font-variant-numeric: tabular-nums; }
+
+/* Dải so sánh: tổng người quy đổi C3 theo PP1/PP2/PP3 và bảng từng VTVL */
+.ss__pp { flex: 1 0 100%; display: grid; gap: 6px; padding-top: 8px; border-top: 1px dashed var(--vien); }
+.ss__pp-tong { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; font-size: 0.82rem; }
+.ss__pp-nhan { font-size: 0.68rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--chu-phu); }
+.ss__pp-o { padding: 2px 10px; border: 1px solid var(--vien); border-radius: 999px; background: var(--be-mat); font-variant-numeric: tabular-nums; }
+.ss__pp-o b { color: var(--chu-phu); margin-right: 4px; }
+.ss__pp-chi-tiet summary { cursor: pointer; font-size: 0.78rem; font-weight: 600; color: var(--chinh); width: fit-content; }
+.ss__pp-chi-tiet summary:focus-visible, .ss__pp-bang:focus-visible { outline: 2px solid var(--chinh); outline-offset: 2px; }
+.ss__pp-bang { max-height: 220px; overflow: auto; margin-top: 6px; border: 1px solid var(--vien); border-radius: 6px; background: var(--be-mat); }
+.ss__pp-bang table { width: 100%; border-collapse: collapse; font-size: 0.78rem; font-variant-numeric: tabular-nums; }
+.ss__pp-bang th, .ss__pp-bang td { padding: 4px 10px; text-align: right; border-bottom: 1px solid var(--vien); white-space: nowrap; }
+.ss__pp-bang th[scope="row"], .ss__pp-bang thead th:first-child { text-align: left; }
+.ss__pp-bang thead th { position: sticky; top: 0; background: var(--be-mat-2); font-weight: 600; color: var(--chu-phu); }
+.ss__pp-bang tfoot th, .ss__pp-bang tfoot td { position: sticky; bottom: 0; background: var(--be-mat-2); font-weight: 700; }
+.ss__pp-o--hop { border-color: color-mix(in srgb, var(--cta) 55%, transparent); }
+.ss__pp-o small { color: var(--chu-phu); font-size: 0.7rem; }
+.ss__pp-o--lech { background: var(--chu-y-nen); }
+.ss__pp-doi-soat { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 16px; font-size: 0.8rem; color: var(--chu-phu); }
+.ss__pp-doi-soat b { color: var(--chu); font-variant-numeric: tabular-nums; }
+.ss__pp-doi-soat--lech > span:last-child, .ss__pp-doi-soat--lech > span:nth-child(4) b { color: var(--chu-y); font-weight: 700; }
+.ss__pp-loc { display: inline-flex; align-items: center; gap: 6px; margin: 6px 0 0 16px; font-size: 0.78rem; cursor: pointer; }
+.ss__pp-loc input { width: 14px; height: 14px; margin: 0; }
+.ss__pp-hang--lech th, .ss__pp-hang--lech td { background: var(--chu-y-nen); }
+.ss__pp-hang--lech .ss__pp-lech { color: var(--chu-y); font-weight: 700; }
+.ss__pp-bang--nhom { max-height: none; width: fit-content; max-width: 100%; }
+.ss__pp-bang--nhom caption { text-align: left; padding: 6px 10px 2px; }
+.ss__pp-bang--nhom th[scope="row"] small { font-weight: 500; color: var(--chu-phu); }
+.ss__pp-bang--nhom tfoot th { position: static; }
+.ss__pp-dau { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; width: 100%; height: auto; padding: 4px 6px; margin: -4px -6px; border: 0; border-radius: 6px; background: transparent; text-align: left; cursor: pointer; color: var(--chu); transition: background-color 150ms; }
+.ss__pp-dau:hover { background: color-mix(in srgb, var(--chu) 6%, transparent); }
+.ss__pp-dau:focus-visible { outline: 2px solid var(--chinh); outline-offset: 1px; }
+.ss__pp-dau svg { flex: none; width: 16px; height: 16px; color: var(--chu-phu); }
+.ss__pp-tom { display: flex; flex-wrap: wrap; gap: 2px 14px; font-size: 0.8rem; color: var(--chu-phu); margin-left: auto; }
+.ss__pp-tom b { color: var(--chu); font-variant-numeric: tabular-nums; }
+.ss__pp--lech .ss__pp-tom-lech, .ss__pp--lech .ss__pp-tom-lech b { color: var(--chu-y); font-weight: 700; }
+.ss__pp-noi-dung { display: grid; gap: 8px; margin-top: 6px; }
+@media (prefers-reduced-motion: reduce) { .ss__pp-dau { transition: none; } }

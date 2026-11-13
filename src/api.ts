@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import type { KetQuaKiemTraTep, KetQuaMa, SuaDonVi, TinhTrangKhoa, ThemDonVi, DonVi, DongDem, KetQuaGui, KetQuaXoa, CayDonVi, YeuCauTao, KetQuaTao, DongBaoCao, TongQuan, DanhSachQt, KyQt, TomTatBieuQt, DuLieuBieuQt, TinhTrangTaiKhoanQt, KetQuaCapNhat, KetQuaThamDinh, ThongTinTdv, DanhSachTdv, TaiKhoanDaLuuQt } from './types';
+import type { KetQuaKiemTraTep, KetQuaMa, SuaDonVi, TinhTrangKhoa, ThemDonVi, DonVi, DongDem, KetQuaGui, KetQuaXoa, CayDonVi, YeuCauTao, KetQuaTao, DongBaoCao, TongQuan, DanhSachQt, KyQt, TomTatBieuQt, DuLieuBieuQt, TinhTrangTaiKhoanQt, KetQuaCapNhat, KetQuaTaiBan, KetQuaThamDinh, ThongTinTdv, DanhSachTdv, TaiKhoanDaLuuQt } from './types';
 
 /** Lời gọi tới các lệnh Tauri (`src-tauri/src/main.rs`). Lỗi trả về là chuỗi tiếng Việt từ phía Rust. */
 export const api = {
@@ -42,6 +42,8 @@ export const api = {
   tdvDanhSach: (donViId: string, kyId: string) => invoke<DanhSachTdv>('tdv_danh_sach', { donViId, kyId }),
   kiemTraCapNhat: () => invoke<KetQuaCapNhat>('kiem_tra_cap_nhat'),
   moTrangTai: (url: string) => invoke<void>('mo_trang_tai', { url }),
+  taiBanCapNhat: () => invoke<KetQuaTaiBan>('tai_ban_cap_nhat'),
+  caiBanCapNhat: (duong: string) => invoke<void>('cai_ban_cap_nhat', { duong }),
   bcCayTrangThai: () => invoke<string | null>('bc_cay_trang_thai'),
   bcCayXuat: (duongDan: string, quetLai: boolean) => invoke<string>('bc_cay_xuat', { duongDan, quetLai }),
   bcTienDoXuat: (duongDan: string) => invoke<string>('bc_tien_do_xuat', { duongDan }),

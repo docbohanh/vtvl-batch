@@ -179,6 +179,94 @@ export function soSanhNguoi(b1: readonly DongQt[], c3: readonly DongQt[]): SoSan
   return { gioB1, nguoiB1, nguoiC3, chenh: nguoiB1 - nguoiC3, tyLe, muc };
 }
 
+/** Người quy đổi của một VTVL theo ba phương pháp ở C3 (PP1: cột H, PP2: cột G, PP3: cột I), kèm phương pháp đã chọn và người cần bố trí (cột J). */
+export interface NguoiTheoPP {
+  ma: string;
+  pp1: number;
+  pp2: number;
+  pp3: number;
+  chon: string;
+  /** Người quy đổi theo PP đã chọn: cộng các cột PP tương ứng (PP1+PP2 = H + G). */
+  quyDoiChon: number;
+  canBoTri: number;
+  /** Cần bố trí − quy đổi theo PP chọn; ≠ 0 là chỗ người thẩm định cần giải trình (J do người nhập). */
+  lech: number;
+}
+
+export interface TongTheoPP {
+  pp1: number;
+  pp2: number;
+  pp3: number;
+  /** Σ quy đổi theo PP chọn và Σ cần bố trí, toàn biểu; `lech` = cần bố trí − quy đổi. */
+  quyDoiChon: number;
+  canBoTri: number;
+  lech: number;
+  /** Mỗi VTVL một dòng (cộng dồn nếu mã lặp ở nhiều dòng C3), theo thứ tự xuất hiện. */
+  theoVtvl: NguoiTheoPP[];
+  /** Người cần bố trí (cột J) gộp theo phương pháp đã chọn (cột B), kể cả tổ hợp PP1+PP2…; PP đơn luôn hiện, tổ hợp và "chưa chọn" chỉ hiện khi có dòng. */
+  theoPPChon: NhomPPChon[];
+}
+
+export interface NhomPPChon { pp: string; soDong: number; quyDoi: number; canBoTri: number }
+
+/** Cột người quy đổi của từng phương pháp ở C3. */
+const COT_QUY_DOI_PP: Readonly<Record<string, string>> = { PP1: 'H', PP2: 'G', PP3: 'I' };
+/** Lệch nhỏ hơn mức này (người) coi là bằng nhau, tránh sai số số thực. */
+export const NGUONG_LECH_PP = 0.005;
+
+/** Người quy đổi của một dòng C3 theo phương pháp đã chọn: cộng các cột PP có trong ô B. */
+function quyDoiTheoChon(duLieu: Record<string, unknown>): number {
+  const chon = String(duLieu.B ?? '').replace(/\s/g, '').toUpperCase();
+  return chon.split('+').reduce((t, pp) => t + (COT_QUY_DOI_PP[pp] ? (soTuO(duLieu[COT_QUY_DOI_PP[pp]]) ?? 0) : 0), 0);
+}
+
+/** Thứ tự hiện các phương pháp chọn: đơn trước, tổ hợp sau. */
+const THU_TU_PP_CHON: readonly string[] = ['PP1', 'PP2', 'PP3', 'PP1+PP2', 'PP1+PP3', 'PP2+PP3', 'PP1+PP2+PP3'];
+const CHUA_CHON = '(chưa chọn)';
+
+/** Tổng người quy đổi theo PP1/PP2/PP3 của C3, toàn biểu và từng VTVL. Ô trống tính 0. */
+export function tongTheoPP(c3: readonly DongQt[]): TongTheoPP {
+  const theoMa = new Map<string, NguoiTheoPP>();
+  for (const d of c3) {
+    const ma = String(d.duLieu.A ?? '').trim() || `(dòng ${d.so})`;
+    const cu = theoMa.get(ma) ?? { ma, pp1: 0, pp2: 0, pp3: 0, chon: '', quyDoiChon: 0, canBoTri: 0, lech: 0 };
+    const quyDoi = cu.quyDoiChon + quyDoiTheoChon(d.duLieu);
+    const canBoTri = cu.canBoTri + (soTuO(d.duLieu.J) ?? 0);
+    const chon = String(d.duLieu.B ?? '').trim().toUpperCase();
+    theoMa.set(ma, {
+      ma,
+      pp1: cu.pp1 + (soTuO(d.duLieu.H) ?? 0),
+      pp2: cu.pp2 + (soTuO(d.duLieu.G) ?? 0),
+      pp3: cu.pp3 + (soTuO(d.duLieu.I) ?? 0),
+      chon: cu.chon && chon && cu.chon !== chon ? `${cu.chon}, ${chon}` : cu.chon || chon,
+      quyDoiChon: quyDoi,
+      canBoTri,
+      lech: canBoTri - quyDoi,
+    });
+  }
+  const theoVtvl = [...theoMa.values()];
+  const nhom = new Map<string, NhomPPChon>();
+  for (const d of c3) {
+    const pp = String(d.duLieu.B ?? '').replace(/\s/g, '').toUpperCase() || CHUA_CHON;
+    const cu = nhom.get(pp) ?? { pp, soDong: 0, quyDoi: 0, canBoTri: 0 };
+    nhom.set(pp, { pp, soDong: cu.soDong + 1, quyDoi: cu.quyDoi + quyDoiTheoChon(d.duLieu), canBoTri: cu.canBoTri + (soTuO(d.duLieu.J) ?? 0) });
+  }
+  const bacCua = (pp: string): number => { const i = THU_TU_PP_CHON.indexOf(pp); return i < 0 ? THU_TU_PP_CHON.length : i; };
+  const theoPPChon = [
+    ...THU_TU_PP_CHON.slice(0, 3).map((pp) => nhom.get(pp) ?? { pp, soDong: 0, quyDoi: 0, canBoTri: 0 }),
+    ...[...nhom.values()].filter((g) => !THU_TU_PP_CHON.slice(0, 3).includes(g.pp)).sort((a, b) => bacCua(a.pp) - bacCua(b.pp) || a.pp.localeCompare(b.pp)),
+  ];
+  const quyDoiChon = theoVtvl.reduce((t, v) => t + v.quyDoiChon, 0);
+  const canBoTri = theoVtvl.reduce((t, v) => t + v.canBoTri, 0);
+  return {
+    theoPPChon, quyDoiChon, canBoTri, lech: canBoTri - quyDoiChon,
+    pp1: theoVtvl.reduce((t, v) => t + v.pp1, 0),
+    pp2: theoVtvl.reduce((t, v) => t + v.pp2, 0),
+    pp3: theoVtvl.reduce((t, v) => t + v.pp3, 0),
+    theoVtvl,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Cây đơn vị: nhóm hồ sơ theo đơn vị cha
 // ---------------------------------------------------------------------------

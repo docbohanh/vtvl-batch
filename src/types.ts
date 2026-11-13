@@ -118,7 +118,12 @@ export interface KetQuaCapNhat {
   coBanMoi: boolean;
   url: string;
   ghiChu: string;
+  /** Bản phát hành có tệp cài đặt hợp với máy này (tự tải và cài được). */
+  coTepCaiDat: boolean;
 }
+
+/** Kết quả `tai_ban_cap_nhat`: tệp cài đặt đã tải xong và kiểm tra. */
+export interface KetQuaTaiBan { duong: string; phienBan: string }
 
 /** Kết quả `tham_dinh_excel`: mọi biểu có trong tệp, cùng dạng với biểu đọc từ cổng. */
 export interface KetQuaThamDinh { tenTep: string; kichThuoc: number; tongDong: number; dongLoi: number; canhBao: string[]; bieu: DuLieuBieuQt[] }
