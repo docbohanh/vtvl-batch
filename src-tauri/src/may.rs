@@ -13,7 +13,9 @@ pub struct DinhDanhMay {
 }
 
 fn chay(lenh: &str, doi_so: &[&str]) -> Option<String> {
-    let r = Command::new(lenh).args(doi_so).output().ok()?;
+    let mut c = Command::new(lenh);
+    c.args(doi_so);
+    let r = crate::an_cua_so::std_cmd(&mut c).output().ok()?;
     r.status.success().then(|| String::from_utf8_lossy(&r.stdout).into_owned())
 }
 

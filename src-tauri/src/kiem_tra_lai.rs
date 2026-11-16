@@ -72,6 +72,21 @@ pub fn doc_readiness(v: &Value) -> KetQuaKiemTraLai {
     }
 }
 
+/// Thuần: đọc `(submittedAt, status)` từ phản hồi `GET /submissions/{id}`. Chuỗi rỗng coi như chưa có.
+pub fn doc_gui(v: &serde_json::Value) -> (Option<String>, Option<String>) {
+    let lay = |k: &str| v[k].as_str().map(str::trim).filter(|x| !x.is_empty()).map(str::to_string);
+    (lay("submittedAt"), lay("status"))
+}
+
+/// Thuần: câu giải thích vì sao bước 8 chưa lên 100 % (cổng chỉ coi bước 8 xong khi hồ sơ đã có `submittedAt`).
+pub fn ghi_chu_gui(da_gui_luc: &Option<String>, trang_thai: &Option<String>) -> String {
+    match (da_gui_luc, trang_thai) {
+        (Some(t), _) => format!("Hồ sơ đã gửi lúc {t}."),
+        (None, Some(s)) => format!("Hồ sơ chưa gửi (trạng thái {s}, chưa có submittedAt): bước 8 còn chờ kiểm tra và gửi trên Desktop."),
+        (None, None) => "Chưa đọc được submittedAt của hồ sơ.".to_string(),
+    }
+}
+
 /// Thuần: một câu tóm tắt tiếng Việt cho ghi chú của đơn vị.
 pub fn tom_tat(k: &KetQuaKiemTraLai) -> String {
     let phan_dau = if k.san_sang {
@@ -150,6 +165,15 @@ mod tests {
     use super::*;
     use crate::thu_gia::{may_chu_gia, phien};
     use serde_json::json;
+
+    #[test]
+    fn doc_gui_phan_biet_chua_gui_va_da_gui() {
+        assert_eq!(doc_gui(&json!({"status": "DRAFT", "submittedAt": null})), (None, Some("DRAFT".into())));
+        assert_eq!(doc_gui(&json!({"status": "DRAFT", "submittedAt": "  "})), (None, Some("DRAFT".into())));
+        assert_eq!(doc_gui(&json!({"status": "SUBMITTED", "submittedAt": "2026-11-12T08:00:00+07:00"})), (Some("2026-11-12T08:00:00+07:00".into()), Some("SUBMITTED".into())));
+        assert!(ghi_chu_gui(&None, &Some("DRAFT".into())).contains("chưa gửi"));
+        assert!(ghi_chu_gui(&Some("t".into()), &None).contains("đã gửi"));
+    }
 
     #[test]
     fn job_xong_hong_hoac_dang_chay() {

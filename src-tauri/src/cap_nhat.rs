@@ -173,10 +173,16 @@ xattr -dr com.apple.quarantine "$DICH" 2>/dev/null
 open "$DICH"
 "#;
 
+/// Đối số chạy trình cài đặt NSIS của Tauri khi cập nhật, đúng như bộ cập nhật chính thức của Tauri (`tauri-plugin-updater`):
+/// `/P` passive (có thanh tiến trình, không hỏi), `/UPDATE` chế độ cập nhật (bỏ qua trang "đã cài, cài lại hay gỡ" và trang chào để không phải bấm gì),
+/// `/R` mở lại ứng dụng sau khi cài, `/ARGS` (rỗng) là đối số truyền cho ứng dụng khi mở lại.
+/// Thiếu `/UPDATE` thì trình cài vẫn hiện trang chọn khi đã có bản cũ, người dùng phải bấm tay.
+#[cfg_attr(not(target_os = "windows"), allow(dead_code))]
+pub fn doi_so_cai_dat_windows() -> [&'static str; 4] { ["/P", "/UPDATE", "/R", "/ARGS"] }
+
 #[cfg(target_os = "windows")]
 fn chay_cai_dat(tep: &Path) -> Result<(), String> {
-    // NSIS của Tauri: /P = chế độ passive (có thanh tiến trình, không hỏi), /R = mở lại ứng dụng sau khi cài.
-    std::process::Command::new(tep).args(["/P", "/R"]).spawn().map(|_| ()).map_err(|e| format!("Không chạy được trình cài đặt: {e}"))
+    std::process::Command::new(tep).args(doi_so_cai_dat_windows()).spawn().map(|_| ()).map_err(|e| format!("Không chạy được trình cài đặt: {e}"))
 }
 
 #[cfg(target_os = "macos")]
@@ -276,6 +282,14 @@ mod tests {
         let ngoai = json!([{"name": "x-setup.exe", "browser_download_url": "https://evil.example/x-setup.exe", "size": 1}]);
         assert!(chon_tep(&ngoai, "windows", "x86_64").is_none());
         assert!(chon_tep(&json!(null), "windows", "x86_64").is_none());
+    }
+
+    #[test]
+    fn cai_dat_windows_dung_che_do_cap_nhat_nhu_bo_cap_nhat_cua_tauri() {
+        let a = doi_so_cai_dat_windows();
+        assert!(a.contains(&"/UPDATE"), "thiếu /UPDATE thì trình cài hiện trang chọn khi đã có bản cũ");
+        assert!(a.contains(&"/P") && a.contains(&"/R"));
+        assert_eq!(a.last(), Some(&"/ARGS"), "/ARGS phải đứng cuối");
     }
 
     #[test]

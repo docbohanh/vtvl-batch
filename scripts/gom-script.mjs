@@ -10,6 +10,9 @@ for (const ten of ['kiem-tra', 'xuat-b30k']) {
     banner: { js: BANNER }, outfile: `src-tauri/resources/scripts/${ten}/cli.mjs`, logLevel: 'warning',
   });
 }
+// Tập lệnh thẩm định (lõi TD của công cụ web) chỉ dùng module có sẵn của Node, chép nguyên.
+mkdirSync('src-tauri/resources/scripts/tham-dinh', { recursive: true });
+copyFileSync('scripts/tham-dinh/tham_dinh.mjs', 'src-tauri/resources/scripts/tham-dinh/tham_dinh.mjs');
 mkdirSync('src-tauri/resources/templates', { recursive: true });
 copyFileSync('templates/03_Bo_bieu_VTVL_30000.xlsx', 'src-tauri/resources/templates/03_Bo_bieu_VTVL_30000.xlsx');
 console.log('Đã gom tập lệnh vào src-tauri/resources/');

@@ -156,6 +156,7 @@ export function LoPage({ daNapLo, duongDan, don, setDon, dangBan, nguoi, thongBa
               onGui={() => { void chay(d.username, () => api.gui(d.username, d.trangThai.thayDoi?.tong ?? 0)); }}
               onGuiLai={() => { void chay(d.username, () => api.guiLai(d.username)); }}
               onGuiBuoc8={() => { void chay(d.username, () => api.guiBuoc8(d.username)); }}
+              onGuiHoSo={() => { void chay(d.username, () => api.guiHoSo(d.username)); }}
               onDonViDoi={setDon}
               moRong={dangMo.has(d.username)}
               onDoiMoRong={(mo) => doiMoRong(d.username, mo)}

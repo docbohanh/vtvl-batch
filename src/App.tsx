@@ -49,6 +49,7 @@ export default function App() {
   const [dangThamDinh, setDangThamDinh] = useState(false);
   const [loiExcel, setLoiExcel] = useState<string | null>(null);
   const [lanNapExcel, setLanNapExcel] = useState(0);
+  const [duongDanExcel, setDuongDanExcel] = useState(''); // tệp Excel đang thẩm định (cho báo cáo theo mã lỗi)
   const [donMo, setDonMo] = useState<string | null>(null); // tên đăng nhập của đơn vị đang mở trong hộp thoại
   const [hoSoHoiMk, setHoSoHoiMk] = useState<HoSoQt | null>(null); // hồ sơ của đơn vị chưa có trong lô: đang hỏi tài khoản + mật khẩu
 
@@ -92,9 +93,9 @@ export default function App() {
   const thamDinhExcel = useCallback(async () => {
     setLoiExcel(null);
     try {
-      const p = await open({ multiple: false, directory: false, filters: [{ name: 'Excel', extensions: ['xlsx'] }] });
+      const p = await open({ multiple: false, directory: false, filters: [{ name: 'Excel', extensions: ['xlsx', 'xls'] }] });
       if (typeof p !== 'string') return;
-      setTrang('excel'); setDangThamDinh(true); setKqExcel(null);
+      setTrang('excel'); setDangThamDinh(true); setKqExcel(null); setDuongDanExcel(p);
       setKqExcel(await api.thamDinhExcel(p));
       setLanNapExcel((n) => n + 1);
     } catch (e) { setLoiExcel(loiThanhChuoi(e)); } finally { setDangThamDinh(false); }
@@ -171,7 +172,7 @@ export default function App() {
 
       {trang === 'excel' && (
         <div className="trang-khung">
-          <ThamDinhExcelPage kq={kqExcel} dangChay={dangThamDinh} loi={loiExcel} lanNap={lanNapExcel} onChonTep={() => void thamDinhExcel()} onVe={() => setTrang('quan_tri')} />
+          <ThamDinhExcelPage kq={kqExcel} duongDan={duongDanExcel} dangChay={dangThamDinh} loi={loiExcel} lanNap={lanNapExcel} onChonTep={() => void thamDinhExcel()} onVe={() => setTrang('quan_tri')} />
         </div>
       )}
       <div className="trang-khung" hidden={trang !== 'quan_tri'}>
@@ -201,6 +202,7 @@ export default function App() {
             onGui={() => { void chay(donChon.username, () => api.gui(donChon.username, donChon.trangThai.thayDoi?.tong ?? 0)); }}
             onGuiLai={() => { void chay(donChon.username, () => api.guiLai(donChon.username)); }}
             onGuiBuoc8={() => { void chay(donChon.username, () => api.guiBuoc8(donChon.username)); }}
+            onGuiHoSo={() => { void chay(donChon.username, () => api.guiHoSo(donChon.username)); }}
             onDonViDoi={setDon}
             moRong
             onDoiMoRong={() => undefined}

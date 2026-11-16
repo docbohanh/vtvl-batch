@@ -8,6 +8,7 @@ import { KiemTraDialog } from './KiemTraDialog';
 import { TongQuanDialog } from './TongQuanDialog';
 import { SuaDonViDialog } from './SuaDonViDialog';
 import { XoaDuLieuDialog } from './XoaDuLieuDialog';
+import { ForceSyncDialog } from './ForceSyncDialog';
 
 const NHAN_BUOC: Record<Buoc, string> = {
   chua_chay: 'Chưa chạy', kiem_tra_ket_noi: 'Đang kiểm tra kết nối', dang_kiem_tra_file: 'Đang kiểm tra tệp', can_xem_xet: 'Cần xem xét', da_khop: 'Đã khớp máy chủ',
@@ -126,15 +127,18 @@ export interface UnitCardProps {
   onGui: () => void;
   onGuiLai: () => void;
   onGuiBuoc8: () => void;
+  onGuiHoSo: () => void;
   onDonViDoi: (ds: DonVi[]) => void;
   /** Thẻ đang mở rộng hay thu gọn (do trang cha giữ để có nút mở/thu tất cả). */
   moRong: boolean;
   onDoiMoRong: (moRong: boolean) => void;
 }
 
-export function UnitCard({ don, dangBan, onCookie, onDangNhap, onChonExcel, onChonHoSo, nguoi, onXoaXong, onChuanBi, onGui, onGuiLai, onGuiBuoc8, onDonViDoi, moRong, onDoiMoRong }: UnitCardProps) {
+export function UnitCard({ don, dangBan, onCookie, onDangNhap, onChonExcel, onChonHoSo, nguoi, onXoaXong, onChuanBi, onGui, onGuiLai, onGuiBuoc8, onGuiHoSo, onDonViDoi, moRong, onDoiMoRong }: UnitCardProps) {
   const [cookie, setCookie] = useState('');
   const [moXoa, setMoXoa] = useState(false);
+  const [xacNhanGuiHoSo, setXacNhanGuiHoSo] = useState(false);
+  const [moForceSync, setMoForceSync] = useState(false);
   const [moSua, setMoSua] = useState(false);
   const [moKiemTra, setMoKiemTra] = useState(false);
   const [moTongQuan, setMoTongQuan] = useState(false);
@@ -199,11 +203,16 @@ export function UnitCard({ don, dangBan, onCookie, onDangNhap, onChonExcel, onCh
           </div>
         </div>
         <div className="hanh-dong" role="group" aria-label="Thao tác đơn vị">
+          <button type="button" className="nut nut--gon nut--nguy" onClick={() => setMoForceSync(true)} disabled={dangChay || !(don.coCookie || don.coMatKhau) || !don.enabled || !don.excelCo} title={!(don.coCookie || don.coMatKhau) ? 'Nhập cookie hoặc cấu hình password' : !don.excelCo ? 'Chưa có tệp Excel' : 'Kiểm tra Excel, xóa hết dữ liệu trên cổng rồi gửi đồng bộ Excel mới (không hoàn tác được)'}>Force Sync</button>
           <button type="button" className="nut nut--gon" onClick={onChuanBi} disabled={dangChay || !(don.coCookie || don.coMatKhau) || !don.enabled || !don.excelCo} title={!(don.coCookie || don.coMatKhau) ? 'Nhập cookie hoặc cấu hình password' : !don.excelCo ? 'Chưa có tệp Excel' : undefined}>Chuẩn bị</button>
           <button type="button" className="nut nut--gon" onClick={() => setMoTongQuan(true)} disabled={dangChay || !don.taiKhoan} title={!don.taiKhoan ? 'Cần Kiểm tra kết nối trước để biết hồ sơ của đơn vị' : 'Xem tổng quan như trang làm việc của ứng dụng Desktop (đọc từ cổng)'}><IcTongQuan /> Tổng quan</button>
           <button type="button" className="nut nut--gon" onClick={() => setMoKiemTra(true)} disabled={dangChay} title="Xem kết quả kiểm tra bộ biểu (lỗi theo từng sheet, số người biên chế trên cổng)"><IcKiemTra /> Kiểm tra</button>
           <button type="button" className="nut nut--gon nut--chinh" onClick={onGui} disabled={dangChay || !sanSang}><IcGui /> Gửi</button>
-          <button type="button" className="nut nut--gon" onClick={onGuiBuoc8} disabled={dangChay || !don.taiKhoan} title={!don.taiKhoan ? 'Cần Kiểm tra kết nối trước để biết hồ sơ của đơn vị' : 'Chỉ chạy bước 8 Kiểm tra trên cổng (kiểm tra lại hồ sơ), không gửi dữ liệu'}>Gửi Bước 8</button>
+          <button type="button" className="nut nut--gon" onClick={onGuiBuoc8} disabled={dangChay || !don.taiKhoan} title={!don.taiKhoan ? 'Cần Kiểm tra kết nối trước để biết hồ sơ của đơn vị' : 'Chạy bước 8 Kiểm tra trên cổng rồi đọc lại submittedAt của hồ sơ. Không gửi dữ liệu và không gửi hồ sơ lên cấp trên'}>Gửi Bước 8</button>
+          <button type="button" className={`nut nut--gon${xacNhanGuiHoSo ? ' nut--nguy' : ''}`} onClick={() => {
+            if (!xacNhanGuiHoSo) { setXacNhanGuiHoSo(true); window.setTimeout(() => setXacNhanGuiHoSo(false), 6000); return; }
+            setXacNhanGuiHoSo(false); onGuiHoSo();
+          }} disabled={dangChay || !don.taiKhoan || Boolean(t.daGuiLuc)} title={t.daGuiLuc ? `Hồ sơ đã gửi lúc ${t.daGuiLuc}` : 'Gửi hồ sơ lên cấp trên (SUBMIT) rồi cập nhật submittedAt. Bấm hai lần để xác nhận'}>{xacNhanGuiHoSo ? 'Bấm lại để gửi hồ sơ' : 'Gửi hồ sơ'}</button>
           {guiLai && <button type="button" className="nut nut--gon" onClick={onGuiLai} disabled={dangChay}>Gửi lại</button>}
           <button type="button" className="nut nut--vuong" onClick={() => setMoSua(true)} disabled={dangChay} title="Sửa thông tin đơn vị trong tệp JSON" aria-label="Sửa thông tin đơn vị"><IcSua /></button>
           <button type="button" className="nut nut--vuong nut--nguy-vien" onClick={() => setMoXoa(true)} disabled={dangChay} title="Xóa dữ liệu cũ của hồ sơ trên cổng…" aria-label="Xóa dữ liệu cũ trên cổng"><IcXoa /></button>
@@ -246,7 +255,7 @@ export function UnitCard({ don, dangBan, onCookie, onDangNhap, onChonExcel, onCh
               {don.excelCo
                 ? <span className="nhan nhan--kn-ok">có tệp</span>
                 : <span className="nhan nhan--kn-chan" title="Đặt tệp vào đúng đường dẫn này hoặc chọn lại tệp">chưa có tệp</span>}
-              <button type="button" className="nut nut--nho" disabled={dangChay} onClick={() => { void moHopThoai({ multiple: false, directory: false, title: 'Chọn tệp Excel của đơn vị', filters: [{ name: 'Excel', extensions: ['xlsx'] }] }).then((p) => { if (typeof p === 'string') onChonExcel(p); }); }}><IcDoiTep /> Chọn lại tệp…</button>
+              <button type="button" className="nut nut--nho" disabled={dangChay} onClick={() => { void moHopThoai({ multiple: false, directory: false, title: 'Chọn tệp Excel của đơn vị', filters: [{ name: 'Excel', extensions: ['xlsx', 'xls'] }] }).then((p) => { if (typeof p === 'string') onChonExcel(p); }); }}><IcDoiTep /> Chọn lại tệp…</button>
             </dd>
           </div>
           <div className="so-lieu__rong so-lieu__khung">
@@ -264,6 +273,9 @@ export function UnitCard({ don, dangBan, onCookie, onDangNhap, onChonExcel, onCh
             </div>
             <div className="sl-4"><dt>Biểu được sửa</dt><dd>{don.taiKhoan ? (don.taiKhoan.bieuDuocSua.length ? don.taiKhoan.bieuDuocSua.join(', ') : 'chưa đọc được') : '—'}</dd></div>
           </div>
+          {t.trangThaiHoSo !== undefined && t.trangThaiHoSo !== null || t.daGuiLuc ? (
+            <div className="sl-4"><dt>Gửi hồ sơ (submittedAt)</dt><dd>{t.daGuiLuc ? `Đã gửi lúc ${t.daGuiLuc}` : `Chưa gửi · ${t.trangThaiHoSo} · bước 8 chờ kiểm tra và gửi`}</dd></div>
+          ) : null}
           {t.soDong && (
             <div className="so-lieu__rong">
               <dt>Số dòng theo biểu (xem trước)</dt>
@@ -320,6 +332,7 @@ export function UnitCard({ don, dangBan, onCookie, onDangNhap, onChonExcel, onCh
       <KiemTraDialog don={don} open={moKiemTra} onClose={() => setMoKiemTra(false)} />
       <TongQuanDialog don={don} open={moTongQuan} onClose={() => setMoTongQuan(false)} />
       <SuaDonViDialog don={don} open={moSua} onClose={() => setMoSua(false)} onXong={onDonViDoi} />
+      <ForceSyncDialog don={don} nguoi={nguoi} open={moForceSync} onClose={() => { if (moForceSync) { setMoForceSync(false); onXoaXong(); } }} />
       <XoaDuLieuDialog don={don} nguoi={nguoi} open={moXoa} onClose={() => { if (moXoa) { setMoXoa(false); onXoaXong(); } }} />
     </article>
   );

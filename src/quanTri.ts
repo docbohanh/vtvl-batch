@@ -1,4 +1,4 @@
-import type { DongQt, HoSoQt, NutQt, TomTatBieuQt } from './types';
+import type { DongQt, HoSoQt, NhomTD, NutQt, TomTatBieuQt } from './types';
 
 /** Ba biểu cần soi kỹ khi thẩm định: đo khối lượng, xác định nhu cầu, lập phương án. */
 export const KHOA_UU_TIEN: readonly string[] = ['b1', 'c3', 'd2'];
@@ -24,6 +24,33 @@ export function locHoSo(ds: readonly HoSoQt[], tim: string, che: CheDoLoc, tienD
     if (che === 'chua_co_du_lieu' && h.dongDat + h.dongChuaDat > 0) return false;
     return !q || boDau(`${h.ten} ${h.ma} ${h.taiKhoan.join(' ')}`).includes(q);
   });
+}
+
+export type KieuTim = 'con' | 'cha';
+
+export const NHAN_KIEU_TIM: Readonly<Record<KieuTim, string>> = { con: 'Đơn vị con', cha: 'Đơn vị cha' };
+
+/**
+ * Tìm theo đơn vị cha: giữ mọi hồ sơ nằm trong nhánh của một đơn vị cha có tên hoặc mã khớp (kể cả hồ sơ riêng của chính đơn vị cha).
+ * Chỉ nút có đơn vị con mới được coi là "cha". Không có chuỗi tìm thì giữ nguyên danh sách.
+ */
+export function locTheoCha(nut: readonly NutQt[], ds: readonly HoSoQt[], tim: string): HoSoQt[] {
+  const q = boDau(tim.trim());
+  if (!q) return [...ds];
+  const con = new Map<string, string[]>();
+  for (const n of nut) if (n.chaId && n.chaId !== n.id) con.set(n.chaId, [...(con.get(n.chaId) ?? []), n.id]);
+  const trongNhanh = new Set<string>();
+  const them = (id: string) => { // duyệt cả nhánh, chặn vòng lặp
+    const chua = [id];
+    while (chua.length > 0) {
+      const x = chua.pop() as string;
+      if (trongNhanh.has(x)) continue;
+      trongNhanh.add(x);
+      chua.push(...(con.get(x) ?? []));
+    }
+  };
+  nut.filter((n) => con.has(n.id) && boDau(`${n.ten} ${n.ma}`).includes(q)).forEach((n) => them(n.id));
+  return ds.filter((h) => trongNhanh.has(h.orgId));
 }
 
 /** Tab: B1, C3, D2 lên đầu (đúng thứ tự đó), các biểu còn lại theo bước. */
@@ -452,4 +479,51 @@ export function toTien(nut: readonly NutQt[], orgId: string): string[] {
   const thay = new Set<string>([orgId]);
   for (let c = theoId.get(orgId)?.chaId; c && theoId.has(c) && !thay.has(c); c = theoId.get(c)?.chaId) { ra.push(c); thay.add(c); }
   return ra;
+}
+
+// ---------------------------------------------------------------------------
+// Báo cáo thẩm định theo mã lỗi (skill vtvl-tham-dinh)
+// ---------------------------------------------------------------------------
+
+export type MauTD = 'tot' | 'chu_y' | 'xau' | 'trung';
+
+/** Ý nghĩa kết luận theo thuật toán của công cụ (mức do loại lỗi quyết định, không do số lượng). Ứng dụng chưa ghi nhận "đã giải trình", nên C/D là mức khi chưa giải trình gì. */
+export const NHAN_KET_LUAN: Readonly<Record<string, string>> = {
+  A: 'Đạt: không còn lỗi chặn, chỉ số 1 từ 90% trở lên',
+  B: 'Đạt có điều kiện: còn mục theo dõi hoặc chỉ số 1 dưới 90%',
+  C: 'Cần sửa/giải trình: còn lỗi chặn hoặc cảnh báo chưa giải trình',
+  D: 'Trả lại: thuộc trường hợp phải trả lại',
+};
+
+export const mauKetLuan = (kl: string): MauTD => (kl === 'A' ? 'tot' : kl === 'B' ? 'chu_y' : kl === 'C' || kl === 'D' ? 'xau' : 'trung');
+
+/** Màu của chữ đánh giá (chỉ số, phiếu): kiểm "không/chưa/trả lại" trước "đạt"; "Mức 3" (thiếu nguồn dữ liệu) là trung tính. */
+export function mauDanhGia(chu: string): MauTD {
+  const t = boDau(chu.trim());
+  if (!t) return 'trung';
+  if (/(khong dat|chua dat|tra lai|loi)/.test(t)) return 'xau';
+  if (/(co canh bao|bo sung|giai trinh|can |theo doi|xem xet|lech)/.test(t)) return 'chu_y';
+  if (/^(tot|dat)/.test(t)) return 'tot';
+  return 'trung';
+}
+
+export const NHAN_MUC_LOI: Readonly<Record<string, string>> = { BB: 'Chặn', CB: 'Cần giải trình', TK: 'Tham khảo' };
+
+/** Lọc nhóm mã lỗi theo mức (null = mọi mức) và chuỗi tìm trong mã, tên, biểu, cột, mô tả; nhóm chỉ giữ các mục khớp. */
+export function locNhomTD(nhom: readonly NhomTD[], muc: string | null, tim: string): NhomTD[] {
+  const q = boDau(tim.trim());
+  return nhom
+    .filter((g) => muc === null || g.muc === muc)
+    .map((g) => {
+      if (!q) return g;
+      const khopNhom = boDau(`${g.id} ${g.ten}`).includes(q);
+      const chiTiet = khopNhom ? g.chiTiet : g.chiTiet.filter((m) => boDau(`${m.bieu} ${m.cot} ${m.dong} ${m.giaTri} ${m.moTa}`).includes(q));
+      return { ...g, chiTiet };
+    })
+    .filter((g) => !q || g.chiTiet.length > 0 || boDau(`${g.id} ${g.ten}`).includes(q));
+}
+
+/** Số nhóm theo từng mức. */
+export function demMucTD(nhom: readonly NhomTD[]): Record<string, number> {
+  return nhom.reduce<Record<string, number>>((d, g) => ({ ...d, [g.muc]: (d[g.muc] ?? 0) + 1 }), {});
 }

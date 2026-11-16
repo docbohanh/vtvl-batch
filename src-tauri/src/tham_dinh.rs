@@ -90,10 +90,10 @@ pub fn dung_ket_qua(kq: &KetQuaKiemTra, ten_tep: String, kich_thuoc: u64) -> Ket
     KetQuaThamDinh { ten_tep, kich_thuoc, tong_dong: kq.tong_dong, dong_loi: kq.dong_loi, canh_bao: kq.canh_bao.clone(), bieu }
 }
 
-/// Tệp phải có đuôi .xlsx và tồn tại; trả đường dẫn và kích thước.
+/// Tệp phải có đuôi .xlsx hoặc .xls và tồn tại; trả đường dẫn và kích thước.
 pub fn kiem_tra_tep(duong_dan: &str) -> Result<(PathBuf, u64), String> {
     let p = PathBuf::from(duong_dan.trim());
-    if !p.extension().is_some_and(|e| e.eq_ignore_ascii_case("xlsx")) { return Err("Chỉ thẩm định được tệp Excel .xlsx".into()); }
+    if !p.extension().is_some_and(|e| e.eq_ignore_ascii_case("xlsx") || e.eq_ignore_ascii_case("xls")) { return Err("Chỉ thẩm định được tệp Excel .xlsx hoặc .xls".into()); }
     let md = std::fs::metadata(&p).map_err(|e| format!("Không đọc được tệp {}: {e}", p.display()))?;
     if !md.is_file() { return Err("Đường dẫn không phải là một tệp".into()); }
     Ok((p, md.len()))
@@ -105,6 +105,14 @@ pub async fn tham_dinh_excel(duong_dan: String, state: State<'_, AppState>) -> R
     let (excel, kich_thuoc) = kiem_tra_tep(&duong_dan)?;
     let lo = lay_lo(&state)?;
     let ten = excel.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+    if crate::chuyen_xls::la_xls(&excel) {
+        // .xls: đổi sang .xlsx tạm (chỉ giữ giá trị ô) rồi thẩm định bản đổi; tệp tạm xóa sau khi chạy
+        let tam = std::env::temp_dir().join(format!("vtvl-batch-{}-{}.xlsx", std::process::id(), chrono::Local::now().timestamp_millis()));
+        crate::chuyen_xls::xls_sang_xlsx(&excel, &tam)?;
+        let kq = chay_tham_dinh(&lo, &tam, ten, kich_thuoc).await;
+        let _ = std::fs::remove_file(&tam);
+        return kq;
+    }
     chay_tham_dinh(&lo, &excel, ten, kich_thuoc).await
 }
 

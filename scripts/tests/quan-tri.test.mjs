@@ -198,3 +198,62 @@ test('lọc nhiều năm D2: rỗng là tất cả, chọn một hoặc nhiều 
   assert.deepEqual(doiNam([2027, 2028], 2028, CAC_NAM_D2), [2027]);
   assert.deepEqual(doiNam([2027, 2028, 2029, 2030], 2031, CAC_NAM_D2), [], 'chọn đủ 5 năm thì thành tất cả');
 });
+
+import { mauDanhGia, mauKetLuan, locNhomTD, demMucTD, NHAN_KET_LUAN } from '../../src/quanTri.ts';
+
+test('màu đánh giá thẩm định: "chưa/không đạt" xấu, "có cảnh báo/bổ sung" chú ý, "tốt/đạt" tốt, "Mức 3" trung tính', () => {
+  assert.equal(mauDanhGia('Tốt'), 'tot');
+  assert.equal(mauDanhGia('Đạt'), 'tot');
+  assert.equal(mauDanhGia('Không đạt'), 'xau');
+  assert.equal(mauDanhGia('Chưa đạt'), 'xau');
+  assert.equal(mauDanhGia('Đạt – có cảnh báo'), 'chu_y');
+  assert.equal(mauDanhGia('Cần bổ sung'), 'chu_y');
+  assert.equal(mauDanhGia('Mức 3'), 'trung');
+  assert.equal(mauDanhGia(''), 'trung');
+});
+
+test('kết luận A/B/C/D: A tốt, B chú ý, C và D xấu; có lời giải thích cho cả bốn', () => {
+  assert.deepEqual(['A', 'B', 'C', 'D', 'X'].map(mauKetLuan), ['tot', 'chu_y', 'xau', 'xau', 'trung']);
+  for (const k of ['A', 'B', 'C', 'D']) assert.ok(NHAN_KET_LUAN[k]);
+});
+
+const mucTD = (bieu, cot, dong, moTa = '') => ({ bieu, cot, dong, ma: '', giaTri: '', moTa, deNghi: '', canCu: '' });
+const NHOM = [
+  { id: 'KT02', muc: 'BB', soLuong: 2, ten: 'Ô tự tính bị ghi đè', chiTiet: [mucTD('B2_CT', 'B', '3–12'), mucTD('C3', 'D', '5')] },
+  { id: 'B104', muc: 'CB', soLuong: 1, ten: 'Ước lượng thực tế', chiTiet: [mucTD('B1', 'J', '7', 'nguồn thời gian không nêu')] },
+  { id: 'HS01', muc: 'TK', soLuong: 1, ten: 'Thiếu sheet', chiTiet: [] },
+];
+
+test('lọc nhóm mã lỗi theo mức, đếm theo mức', () => {
+  assert.deepEqual(locNhomTD(NHOM, 'BB', '').map((g) => g.id), ['KT02']);
+  assert.equal(locNhomTD(NHOM, null, '').length, 3);
+  assert.deepEqual(demMucTD(NHOM), { BB: 1, CB: 1, TK: 1 });
+});
+
+test('tìm trong nhóm mã lỗi: khớp mã/tên giữ cả nhóm, khớp vị trí/mô tả chỉ giữ mục khớp, không dấu', () => {
+  assert.deepEqual(locNhomTD(NHOM, null, 'kt02').map((g) => g.chiTiet.length), [2]);
+  const r = locNhomTD(NHOM, null, 'b2_ct');
+  assert.deepEqual(r.map((g) => g.id), ['KT02']);
+  assert.deepEqual(r[0].chiTiet.map((m) => m.bieu), ['B2_CT']);
+  assert.deepEqual(locNhomTD(NHOM, null, 'nguon thoi gian').map((g) => g.id), ['B104']);
+  assert.deepEqual(locNhomTD(NHOM, null, 'thieu sheet').map((g) => g.id), ['HS01']);
+  assert.deepEqual(locNhomTD(NHOM, null, 'khong-co'), []);
+});
+
+import { locTheoCha } from '../../src/quanTri.ts';
+
+test('tìm theo đơn vị cha: trả mọi hồ sơ trong nhánh cha khớp (kể cả hồ sơ riêng của cha), không dấu, khớp theo mã được', () => {
+  const ds = [ho('t', 'UBND tỉnh'), ho('x1', 'Xã B'), ho('x2', 'Xã A'), ho('tr', 'Trường 1'), ho('bq', 'Ban 2')];
+  assert.deepEqual(locTheoCha(CAY, ds, 'xa b').map((h) => h.orgId).sort(), ['bq', 'tr', 'x1']);
+  assert.deepEqual(locTheoCha(CAY, ds, 'UBND TINH').map((h) => h.orgId).sort(), ['bq', 't', 'tr', 'x1', 'x2']);
+  assert.deepEqual(locTheoCha(CAY, ds, 'x1').map((h) => h.orgId).sort(), ['bq', 'tr', 'x1'], 'mã đơn vị cũng khớp');
+});
+
+test('tìm theo đơn vị cha: tên đơn vị lá không khớp (lá không phải cha); không có chuỗi tìm giữ nguyên; không có cây thì rỗng', () => {
+  const ds = [ho('t', 'UBND tỉnh'), ho('x1', 'Xã B'), ho('tr', 'Trường 1')];
+  assert.deepEqual(locTheoCha(CAY, ds, 'Trường'), []);
+  assert.equal(locTheoCha(CAY, ds, '  ').length, 3);
+  assert.deepEqual(locTheoCha([], ds, 'Xã'), []);
+  const vong = [nut('a', 'A', 'b'), nut('b', 'B', 'a')];
+  assert.ok(Array.isArray(locTheoCha(vong, [ho('a', 'A'), ho('b', 'B')], 'A')), 'chu trình cha-con không làm treo');
+});

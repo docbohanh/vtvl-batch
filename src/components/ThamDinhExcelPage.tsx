@@ -1,5 +1,6 @@
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import type { DuLieuBieuQt, KetQuaThamDinh, TomTatBieuQt } from '../types';
+import { BaoCaoThamDinhDialog } from './BaoCaoThamDinhDialog';
 import { BoBieuXem } from './BoBieuXem';
 import { IcCanhBao, IcKiemTra } from './Icons';
 
@@ -9,6 +10,8 @@ const tomTat = (b: DuLieuBieuQt): TomTatBieuQt => ({ khoa: b.bieu.khoa, ma: b.bi
 
 export interface ThamDinhExcelPageProps {
   kq: KetQuaThamDinh | null;
+  /** Đường dẫn tệp Excel vừa chọn, để chạy báo cáo thẩm định theo mã lỗi. */
+  duongDan: string;
   dangChay: boolean;
   loi: string | null;
   /** Mã tăng sau mỗi lần nạp tệp để giao diện xem biểu đặt lại. */
@@ -18,7 +21,8 @@ export interface ThamDinhExcelPageProps {
 }
 
 /** Trang "Thẩm định Excel": xem một tệp bộ biểu độc lập như khi chọn một đơn vị (tab từng biểu, tìm/lọc/sắp xếp, so sánh B1 ↔ C3). Dữ liệu đọc từ tệp trên máy, không qua cổng và không được lưu. */
-export function ThamDinhExcelPage({ kq, dangChay, loi, lanNap, onChonTep, onVe }: ThamDinhExcelPageProps) {
+export function ThamDinhExcelPage({ kq, duongDan, dangChay, loi, lanNap, onChonTep, onVe }: ThamDinhExcelPageProps) {
+  const [moBaoCao, setMoBaoCao] = useState(false);
   const layDanhSach = useCallback(async () => (kq ? kq.bieu.map(tomTat) : []), [kq]);
   const layBieu = useCallback(async (khoa: string) => {
     const b = kq?.bieu.find((x) => x.bieu.khoa === khoa);
@@ -55,11 +59,13 @@ export function ThamDinhExcelPage({ kq, dangChay, loi, lanNap, onChonTep, onVe }
             )}
             nut={() => (
               <>
+                <button type="button" className="nut nut--chinh" onClick={() => setMoBaoCao(true)} disabled={dangChay || !duongDan} title="Báo cáo thẩm định theo mã lỗi (kết luận A/B/C/D, 18 chỉ số, phiếu 12 nội dung, chi tiết đến từng dòng)"><IcCanhBao /> Báo cáo mã lỗi</button>
                 <button type="button" className="nut" onClick={onChonTep} disabled={dangChay}><IcKiemTra /> Chọn tệp khác</button>
                 <button type="button" className="nut nut--chinh" onClick={onVe}>← Quay lại</button>
               </>
             )}
           />
+          <BaoCaoThamDinhDialog open={moBaoCao} duongDan={duongDan} tenTep={kq.tenTep} onClose={() => setMoBaoCao(false)} />
         </div>
       )}
     </div>

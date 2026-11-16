@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import type { KetQuaKiemTraTep, KetQuaMa, SuaDonVi, TinhTrangKhoa, ThemDonVi, DonVi, DongDem, KetQuaGui, KetQuaXoa, CayDonVi, YeuCauTao, KetQuaTao, DongBaoCao, TongQuan, DanhSachQt, KyQt, TomTatBieuQt, DuLieuBieuQt, TinhTrangTaiKhoanQt, KetQuaCapNhat, KetQuaTaiBan, KetQuaThamDinh, ThongTinTdv, DanhSachTdv, TaiKhoanDaLuuQt } from './types';
+import type { KetQuaKiemTraTep, KetQuaMa, SuaDonVi, TinhTrangKhoa, ThemDonVi, DonVi, DongDem, KetQuaGui, KetQuaXoa, KetQuaForceSync, CayDonVi, YeuCauTao, KetQuaTao, DongBaoCao, TongQuan, DanhSachQt, KyQt, TomTatBieuQt, DuLieuBieuQt, TinhTrangTaiKhoanQt, KetQuaCapNhat, KetQuaTaiBan, KetQuaThamDinh, ThongTinTdv, DanhSachTdv, TaiKhoanDaLuuQt, BaoCaoTD } from './types';
 
 /** Lời gọi tới các lệnh Tauri (`src-tauri/src/main.rs`). Lỗi trả về là chuỗi tiếng Việt từ phía Rust. */
 export const api = {
@@ -21,6 +21,7 @@ export const api = {
   tongQuan: (username: string) => invoke<TongQuan>('tong_quan', { username }),
   xoaDem: (username: string) => invoke<DongDem[]>('xoa_dem', { username }),
   xoaDuLieu: (username: string) => invoke<KetQuaXoa[]>('xoa_du_lieu', { username }),
+  forceSync: (username: string) => invoke<KetQuaForceSync>('force_sync', { username }),
   datCookie: (username: string, cookie: string) => invoke<void>('dat_cookie', { username, cookie }),
   datNguoi: (ten: string) => invoke<void>('dat_nguoi', { ten }),
   kiemTraKetNoiTatCa: () => invoke<DonVi[]>('kiem_tra_ket_noi_tat_ca'),
@@ -37,6 +38,7 @@ export const api = {
   qtChiTiet: (idHoSo: string) => invoke<TomTatBieuQt[]>('qt_chi_tiet', { idHoSo }),
   qtBieu: (idHoSo: string, khoa: string) => invoke<DuLieuBieuQt>('qt_bieu', { idHoSo, khoa }),
   qtXuatExcel: (idHoSo: string, duongDan: string) => invoke<string>('qt_xuat_excel', { idHoSo, duongDan }),
+  thamDinhBaoCao: (duongDan: string, xacNhan: boolean) => invoke<BaoCaoTD>('tham_dinh_bao_cao', { duongDan, xacNhan }),
   thamDinhExcel: (duongDan: string) => invoke<KetQuaThamDinh>('tham_dinh_excel', { duongDan }),
   tdvThongTin: () => invoke<ThongTinTdv>('tdv_thong_tin'),
   tdvDanhSach: (donViId: string, kyId: string) => invoke<DanhSachTdv>('tdv_danh_sach', { donViId, kyId }),
@@ -52,6 +54,7 @@ export const api = {
   gui: (username: string, soThayDoi: number) => invoke<void>('gui', { username, soThayDoi }),
   guiLai: (username: string) => invoke<void>('gui_lai', { username }),
   guiBuoc8: (username: string) => invoke<void>('gui_buoc_8', { username }),
+  guiHoSo: (username: string) => invoke<void>('gui_ho_so', { username }),
   guiTatCa: (danhSach: { username: string; soThayDoi: number }[]) => invoke<KetQuaGui[]>('gui_tat_ca', { danhSach }),
 };
 

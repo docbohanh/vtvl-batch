@@ -4,7 +4,7 @@ import { laManHinhHep, useNhoBoolean } from '../boNho';
 import { dinhDangTong, GIO_MOT_NGUOI_NAM, KHOA_UU_TIEN, nhanBieu, NGUONG_LECH_KHOP, sapTab, soSanhNguoi, tongTheoPP, NGUONG_LECH_PP, chiSoThamDinh, type ChiSoThamDinh, type TongTheoPP } from '../quanTri';
 import type { DuLieuBieuQt, TomTatBieuQt } from '../types';
 import { BangBieu } from './BangBieu';
-import { IcCanhBao, IcDong, IcLenTren, IcLenXuong } from './Icons';
+import { IcCanhBao, IcDong, IcLenTren, IcLenXuong, IcThuNhoManHinh, IcToanManHinh } from './Icons';
 
 type TaiBieu = { loai: 'dang_tai' } | { loai: 'loi'; thongBao: string } | { loai: 'xong'; du: DuLieuBieuQt };
 
@@ -38,6 +38,14 @@ export function BoBieuXem({ khoaNap, tenAria, dau, nut: veNut, thongBao, layDanh
   const [bieu, setBieu] = useState<TomTatBieuQt[] | null>(null);
   const [loiBieu, setLoiBieu] = useState<string | null>(null);
   const [tab, setTab] = useState<string>(KHOA_UU_TIEN[0]);
+  const [toanMan, setToanMan] = useState(false);
+  // Esc thoát chế độ toàn màn hình (không đè lên hộp thoại đang mở)
+  useEffect(() => {
+    if (!toanMan) return;
+    const thoat = (e: globalThis.KeyboardEvent) => { if (e.key === 'Escape' && !document.querySelector('dialog[open]')) setToanMan(false); };
+    window.addEventListener('keydown', thoat);
+    return () => window.removeEventListener('keydown', thoat);
+  }, [toanMan]);
   const [da, setDa] = useState<Record<string, TaiBieu>>({});
   const lanTai = useRef(0);
   const [gonDau, setGonDau] = useNhoBoolean(khoaGon, laManHinhHep); // ẩn dòng phụ và dải so sánh B1 ↔ C3
@@ -119,12 +127,15 @@ export function BoBieuXem({ khoaNap, tenAria, dau, nut: veNut, thongBao, layDanh
       {!bieu && !loiBieu && <p className="hsqt__trang" role="status"><span className="quay" aria-hidden="true" /> Đang đọc danh sách biểu…</p>}
 
       {bieu && (
-        <>
+        <div className={`hsqt__khung${toanMan ? ' hsqt__khung--toan-man' : ''}`}>
           <div className="tab-dai" role="tablist" aria-label="Các biểu" onKeyDown={phimTab}>
-            <span className="tab-dai__nhom">Thẩm định</span>
             {uuTien.map((b) => nutTab(b, true))}
-            {khac.length > 0 && <span className="tab-dai__nhom tab-dai__nhom--khac">Biểu khác</span>}
+            {khac.length > 0 && uuTien.length > 0 && <span className="tab-dai__ngan" aria-hidden="true" />}
             {khac.map((b) => nutTab(b, false))}
+            <button type="button" className="nut tab-dai__toan-man" aria-pressed={toanMan} onClick={() => setToanMan((t) => !t)}
+              title={toanMan ? 'Thu nhỏ về khung thường (Esc)' : 'Mở rộng dải biểu và bảng ra toàn màn hình, tiện cho màn hình nhỏ; vẫn chuyển được giữa các biểu'}>
+              {toanMan ? <IcThuNhoManHinh /> : <IcToanManHinh />} {toanMan ? 'Thu nhỏ' : 'Toàn màn hình'}
+            </button>
           </div>
           <div id={`bang-${tab}`} role="tabpanel" aria-labelledby={`tab-${tab}`} aria-busy={hienTai?.loai === 'dang_tai'} className="hsqt__noi-dung">
             {bieuChon && <p className="hsqt__tieu-de-bieu">{bieuChon.ma} · {bieuChon.tieuDe}</p>}
@@ -132,7 +143,7 @@ export function BoBieuXem({ khoaNap, tenAria, dau, nut: veNut, thongBao, layDanh
             {hienTai?.loai === 'loi' && <p className="thong-bao thong-bao--loi" role="alert"><IcCanhBao />{hienTai.thongBao}</p>}
             {hienTai?.loai === 'xong' && <BangBieu du={hienTai.du} />}
           </div>
-        </>
+        </div>
       )}
     </section>
   );

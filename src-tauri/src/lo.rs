@@ -477,13 +477,19 @@ pub struct TrangThai {
     /// Thông báo không phải lỗi (ví dụ chế độ khô).
     #[serde(default, rename = "ghiChu")]
     pub ghi_chu: Option<String>,
+    /// `submittedAt` của hồ sơ trên cổng, đọc lại sau bước 8; `None` = hồ sơ chưa được gửi (bước 8 chưa thể "Hoàn thành").
+    #[serde(default, rename = "daGuiLuc")]
+    pub da_gui_luc: Option<String>,
+    /// `status` của hồ sơ trên cổng (DRAFT, UNIT_REVIEW, SUBMITTED…), đọc cùng lúc với `daGuiLuc`.
+    #[serde(default, rename = "trangThaiHoSo")]
+    pub trang_thai_ho_so: Option<String>,
     #[serde(rename = "capNhat")]
     pub cap_nhat: String,
 }
 
 impl Default for TrangThai {
     fn default() -> Self {
-        Self { schema: SCHEMA, buoc: Buoc::ChuaChay, tien_do: 0, ket_noi: "chua_kiem_tra".into(), kiem_tra: None, thay_doi: None, goi_hien_tai: None, so_dong: None, loi: None, ghi_chu: None, cap_nhat: bay_gio() }
+        Self { schema: SCHEMA, buoc: Buoc::ChuaChay, tien_do: 0, ket_noi: "chua_kiem_tra".into(), kiem_tra: None, thay_doi: None, goi_hien_tai: None, so_dong: None, loi: None, ghi_chu: None, da_gui_luc: None, trang_thai_ho_so: None, cap_nhat: bay_gio() }
     }
 }
 

@@ -31,6 +31,8 @@ export interface TrangThai {
   soDong: { cong: Record<string, number>; excel: Record<string, number>; tongCong?: Tong; tongExcel?: Tong } | null;
   loi: string | null;
   ghiChu: string | null;
+  daGuiLuc?: string | null;
+  trangThaiHoSo?: string | null;
   capNhat: string;
 }
 
@@ -56,6 +58,7 @@ export interface KetQuaGui { username: string; ok: boolean; loi: string | null }
 export type Tong = Record<string, Record<string, number>>;
 
 export interface DongDem { khoa: string; ten: string; soDong: number | null; loi: string | null }
+export interface KetQuaForceSync { daXoa: number; daGui: number }
 export interface KetQuaXoa { khoa: string; ten: string; daXoa: number; conLai: number | null; loi: string | null }
 
 /** Đơn vị thêm tay: ghi vào tệp JSON của lô. */
@@ -137,3 +140,11 @@ export interface DanhSachTdv { quetLuc: string; ky: KyQt; donVi: DonViChonQt; ho
 
 /** Tài khoản đã đăng nhập thành công và được nhớ trên máy để chuyển nhanh (không kèm mật khẩu). */
 export interface TaiKhoanDaLuuQt { tenDangNhap: string; vaiTro: 'quan_tri' | 'truong_don_vi' | string; hoTen: string; lanCuoi: string }
+
+/** Báo cáo thẩm định theo mã lỗi (skill `vtvl-tham-dinh`): kết luận A/B/C/D, phiếu 12 nội dung, 18 chỉ số và danh sách mã lỗi kèm biểu/cột/dòng. */
+export interface PhieuTD { tt: number; noiDung: string; ketQua: string; bb: number; cb: number; yeuCau: string }
+export interface ChiSoTD { so: number; ten: string; tu: number | null; mau: number | null; tuTen: string; mauTen: string; giaTri: string; danhGia: string; nguong: string }
+export interface MucTD { bieu: string; cot: string; dong: string; ma: string; giaTri: string; moTa: string; deNghi: string; canCu: string }
+export type MucLoiTD = 'BB' | 'CB' | 'TK';
+export interface NhomTD { id: string; muc: MucLoiTD | string; soLuong: number; ten: string; chiTiet: MucTD[] }
+export interface BaoCaoTD { phienBan: string; ketLuan: string; lyDo: string[]; phieu: PhieuTD[]; chiSo: ChiSoTD[]; nhom: NhomTD[] }

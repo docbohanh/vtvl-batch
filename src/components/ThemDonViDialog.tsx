@@ -16,7 +16,7 @@ export interface ThemDonViDialogProps {
   onCanhBao: (thongBao: string) => void;
 }
 
-const tenTep = (p: string) => p.split(/[\\/]/).pop() ?? p;
+const tenTep = (p: string) => (p.split(/[\\/]/).pop() ?? p).replace(/\.xls$/i, '.xlsx'); // .xls được app đổi sang .xlsx khi chép vào nguon/
 
 /** Hộp thoại thêm đơn vị thủ công: ghi thêm một mục vào mảng `units` của tệp JSON lô đang nạp. */
 export function ThemDonViDialog({ open, daNapLo, onClose, onXong, onCanhBao }: ThemDonViDialogProps) {
@@ -38,7 +38,7 @@ export function ThemDonViDialog({ open, daNapLo, onClose, onXong, onCanhBao }: T
   const hopLe = username.length > 0 && daNapLo && !dangLuu;
 
   async function chonTep() {
-    const p = await moHopThoai({ multiple: false, directory: false, title: 'Chọn tệp Excel của đơn vị', filters: [{ name: 'Excel', extensions: ['xlsx'] }] });
+    const p = await moHopThoai({ multiple: false, directory: false, title: 'Chọn tệp Excel của đơn vị', filters: [{ name: 'Excel', extensions: ['xlsx', 'xls'] }] });
     if (typeof p === 'string') setTepChon(p);
   }
 

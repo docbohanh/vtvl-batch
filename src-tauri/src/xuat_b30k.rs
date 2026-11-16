@@ -48,7 +48,10 @@ pub async fn xuat(node: &str, kiem_tra_script: &Path, cac: &[DuLieuBieu], dich: 
     let vao = std::env::temp_dir().join(format!("vtvl-xuat-b30k-{}-{}.json", std::process::id(), chrono::Utc::now().timestamp_millis()));
     std::fs::write(&vao, serde_json::to_vec(&dung_vao(cac)).map_err(|e| e.to_string())?).map_err(|e| format!("Không ghi được tệp tạm: {e}"))?;
     let node = crate::kiem_tra_local::tim_node(node);
-    let kq = tokio::time::timeout(HAN_CHO, Command::new(&node).arg(&script).arg(&vao).arg(&mau).arg(dich).kill_on_drop(true).output()).await;
+    let mut lenh = Command::new(&node);
+    lenh.arg(&script).arg(&vao).arg(&mau).arg(dich).kill_on_drop(true);
+    crate::an_cua_so::tokio(&mut lenh);
+    let kq = tokio::time::timeout(HAN_CHO, lenh.output()).await;
     let _ = std::fs::remove_file(&vao);
     let out = kq.map_err(|_| "Xuất B30K quá thời gian chờ (5 phút)".to_string())?
         .map_err(|e| format!("Không chạy được Node ({node}): {e}. Cài Node.js 20 trở lên hoặc đặt đường dẫn đầy đủ vào `settings.node` trong cấu hình lô."))?;

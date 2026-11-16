@@ -1,6 +1,6 @@
 [package]
 name = "vtvl-batch"
-version = "1.0.19"
+version = "1.0.20"
 edition = "2021"
 
 [dependencies]
@@ -16,6 +16,7 @@ uuid = { version = "1", features = ["v4", "v7"] }
 flate2 = "1"
 bcrypt = "0.17"
 rust_xlsxwriter = "0.102.0"
+calamine = "0.38.0"
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }

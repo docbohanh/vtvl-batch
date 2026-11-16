@@ -150,6 +150,7 @@ pub async fn chay(y: &YeuCau<'_>) -> Result<(KetQuaKiemTra, serde_json::Value), 
     let node = tim_node(y.node);
     let mut cmd = Command::new(&node);
     cmd.args(tham_so(y)).kill_on_drop(true).stdin(std::process::Stdio::null());
+    crate::an_cua_so::tokio(&mut cmd);
     let out = tokio::time::timeout(y.timeout, cmd.output())
         .await
         .map_err(|_| format!("Kiểm tra tệp quá {} giây", y.timeout.as_secs()))?

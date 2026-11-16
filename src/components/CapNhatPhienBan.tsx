@@ -24,6 +24,9 @@ interface TienDo { da: number; tong: number }
 export function CapNhatPhienBan() {
   const [tt, setTt] = useState<Tt>({ loai: 'chua' });
   const daTuTai = useRef<string | null>(null); // phiên bản đã tự tải, tránh tải lặp
+  const daHoi = useRef<string | null>(null); // phiên bản đã hỏi cài đặt, chỉ hỏi một lần mỗi bản
+  const hopHoiRef = useRef<HTMLDialogElement>(null);
+  const [moHoi, setMoHoi] = useState(false);
 
   const tai = useCallback(async (kq: KetQuaCapNhat) => {
     setTt({ loai: 'tai', kq, phanTram: null });
@@ -63,7 +66,20 @@ export function CapNhatPhienBan() {
     return () => { huy = true; bo?.(); };
   }, []);
 
+  // tải xong thì tự hỏi một lần: một bấm là cài và mở lại, như ứng dụng Desktop
+  useEffect(() => {
+    if (tt.loai === 'san_sang' && daHoi.current !== tt.kq.moi) { daHoi.current = tt.kq.moi; setMoHoi(true); }
+  }, [tt]);
+
+  useEffect(() => {
+    const d = hopHoiRef.current;
+    if (!d) return;
+    if (moHoi && !d.open) d.showModal();
+    if (!moHoi && d.open) d.close();
+  }, [moHoi, tt.loai]);
+
   async function cai(kq: KetQuaCapNhat, duong: string) {
+    setMoHoi(false);
     setTt({ loai: 'cai', kq });
     try {
       await api.caiBanCapNhat(duong); // thành công thì ứng dụng tự thoát để cài đè
@@ -72,10 +88,22 @@ export function CapNhatPhienBan() {
     }
   }
 
+  const hopHoi = tt.loai === 'san_sang' ? (
+    <dialog ref={hopHoiRef} className="hop-cap-nhat" onClose={() => setMoHoi(false)} aria-labelledby="cn-tieu-de">
+      <h2 id="cn-tieu-de">Đã có phiên bản mới {tt.kq.moi}</h2>
+      <p className="phu">Đang dùng {tt.kq.hienTai}. Bản mới đã tải xong; bấm “Cài đặt ngay” để cài đè và mở lại ứng dụng, không cần tải hay chạy tệp nào khác. Việc đang làm nên lưu trước.</p>
+      {tt.kq.ghiChu && <pre className="hop-cap-nhat__ghi-chu" tabIndex={0}>{tt.kq.ghiChu}</pre>}
+      <form method="dialog" className="xn-nut">
+        <button type="submit" className="nut" value="de-sau">Để sau</button>
+        <button type="button" className="nut nut--chinh" onClick={() => void cai(tt.kq, tt.duong)}><IcTaiXuong /> Cài đặt ngay</button>
+      </form>
+    </dialog>
+  ) : null;
   const boc = (nut: JSX.Element) => (
     <div className="tk-qt">
       <span className="nhan-truong"><IcLamMoi /> Quản lý phiên bản</span>
       {nut}
+      {hopHoi}
     </div>
   );
   const moTrang = (kq: KetQuaCapNhat) => { void api.moTrangTai(kq.url).catch(() => undefined); };

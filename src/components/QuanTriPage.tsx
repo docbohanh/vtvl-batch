@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, loiThanhChuoi } from '../api';
 import { laManHinhHep, useNhoBoolean } from '../boNho';
 import { dinhDangCapNhat } from '../tongQuan';
-import { docPhanTram, dungHangCay, locHoSo, NHAN_CHE_DO, NUT_CHUA_XEP, type CheDoLoc } from '../quanTri';
+import { docPhanTram, dungHangCay, locHoSo, locTheoCha, NHAN_CHE_DO, NHAN_KIEU_TIM, NUT_CHUA_XEP, type CheDoLoc, type KieuTim } from '../quanTri';
 import type { DanhSachQt, HoSoQt, KyQt } from '../types';
 import { CayHoSo } from './CayHoSo';
 import { HoSoQuanTri } from './HoSoQuanTri';
@@ -27,6 +27,7 @@ export function QuanTriPage({ daNapLo, lanDoiTaiKhoan, onQuanTri }: QuanTriPageP
   const [dangQuet, setDangQuet] = useState(false);
   const [loi, setLoi] = useState<string | null>(null);
   const [tim, setTim] = useState('');
+  const [kieuTim, setKieuTim] = useState<KieuTim>('con'); // tìm theo đơn vị con (lá, tên/mã/tài khoản) hoặc theo đơn vị cha (cả nhánh)
   const [che, setChe] = useState<CheDoLoc>('tat_ca');
   const [tienDoNhap, setTienDoNhap] = useState(''); // chip "Tiến độ ≤ n %"; trống = tắt
   const [chon, setChon] = useState<string | null>(null);
@@ -78,7 +79,11 @@ export function QuanTriPage({ daNapLo, lanDoiTaiKhoan, onQuanTri }: QuanTriPageP
   }, [ds]);
 
   const tienDoToiDa = docPhanTram(tienDoNhap);
-  const hienThi = useMemo(() => (ds ? locHoSo(ds.hoSo, tim, che, tienDoToiDa) : []), [ds, tim, che, tienDoToiDa]);
+  const hienThi = useMemo(() => {
+    if (!ds) return [];
+    // theo đơn vị cha: lọc chế độ/tiến độ trước, rồi giữ cả nhánh của đơn vị cha khớp chuỗi tìm
+    return kieuTim === 'cha' ? locTheoCha(cacNut, locHoSo(ds.hoSo, '', che, tienDoToiDa), tim) : locHoSo(ds.hoSo, tim, che, tienDoToiDa);
+  }, [ds, cacNut, tim, kieuTim, che, tienDoToiDa]);
   const dangTim = tim.trim() !== '' || che !== 'tat_ca' || tienDoToiDa !== null; // đang lọc thì mở hết để thấy mọi kết quả
   const hangCay = useMemo(() => dungHangCay(cacNut, hienThi, moRong, dangTim), [cacNut, hienThi, moRong, dangTim]);
   const doiNhanh = (id: string) => setMoRong((cu) => { const n = new Set(cu); if (n.has(id)) n.delete(id); else n.add(id); return n; });
@@ -146,10 +151,20 @@ export function QuanTriPage({ daNapLo, lanDoiTaiKhoan, onQuanTri }: QuanTriPageP
               {dangQuet ? <span className="quay" aria-hidden="true" /> : <IcLamMoi />} <span>Cập nhật</span>
             </button>
           </div>
-          <label className="tim-kiem">
-            <IcTim aria-hidden="true" />
-            <input type="search" value={tim} onChange={(e) => setTim(e.target.value)} placeholder="Tìm đơn vị, mã, tài khoản…" aria-label="Tìm hồ sơ" autoComplete="off" spellCheck={false} disabled={!ds} />
-          </label>
+          <div className="qt__tim">
+            <div className="tim-kiem qt__tim-hop">
+              <IcTim aria-hidden="true" />
+              <input type="search" value={tim} onChange={(e) => setTim(e.target.value)} placeholder={kieuTim === 'cha' ? 'Tìm đơn vị cha (xã, phường, sở…)' : 'Tìm đơn vị, mã, tài khoản…'}
+                aria-label={kieuTim === 'cha' ? 'Tìm theo đơn vị cha' : 'Tìm theo đơn vị con'} autoComplete="off" spellCheck={false} disabled={!ds} />
+              <div className="qt__kieu-tim" role="tablist" aria-label="Tìm theo">
+                {(Object.keys(NHAN_KIEU_TIM) as KieuTim[]).map((k) => (
+                  <button key={k} type="button" role="tab" aria-selected={kieuTim === k} aria-label={NHAN_KIEU_TIM[k]} className={kieuTim === k ? 'qt__kieu-tim--chon' : undefined} onClick={() => setKieuTim(k)}
+                    title={k === 'cha' ? 'Tìm theo đơn vị cha: nhập tên đơn vị cha để hiện toàn bộ đơn vị con trong nhánh' : 'Tìm theo đơn vị con: nhập tên, mã hoặc tài khoản của hồ sơ'}>{k === 'cha' ? 'Cha' : 'Con'}</button>
+                ))}
+              </div>
+            </div>
+            {kieuTim === 'cha' && ds && cacNut.length === 0 && <p className="qt__phu">Chưa có cây đơn vị: bấm “Cập nhật” để tìm theo đơn vị cha.</p>}
+          </div>
           <div className="qt__loc" role="group" aria-label="Lọc hồ sơ">
             {CAC_CHE_DO.map((c) => (
               <button key={c} type="button" className={`loc-nut${che === c ? ' loc-nut--chon' : ''}`} aria-pressed={che === c} onClick={() => setChe(c)}>{NHAN_CHE_DO[c]}</button>

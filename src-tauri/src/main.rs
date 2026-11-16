@@ -1,11 +1,17 @@
 //! VTVL Batch: quản lý nhiều đơn vị song song (đường B: gói thay đổi).
 //! Luồng: kiểm tra kết nối tất cả → chuẩn bị (kiểm tra Excel, tính thay đổi) → Gửi / Gửi lại / Gửi tất cả. Không tự gửi, không nộp hồ sơ.
 
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
+mod an_cua_so;
 mod bao_cao_cay;
+mod bao_cao_tham_dinh;
 mod bao_cao_tien_do;
+mod chuyen_xls;
 mod cong_mat_khau;
 mod danh_muc;
 mod goi;
+mod gui_ho_so;
 mod imports;
 mod ket_chuyen;
 mod ket_noi;
@@ -1039,11 +1045,20 @@ async fn buoc_8_kiem_tra(sess: &Session, sid: &str, dir: &std::path::Path, rieng
         Err(e) if rieng => (format!("Chưa chạy được bước 8 Kiểm tra trên cổng: {e}."), "loi"),
         Err(e) => (format!("Đã gửi, nhưng chưa chạy được bước 8 Kiểm tra trên cổng: {e}. Vào Kiểm tra và gửi của ứng dụng Desktop bấm Kiểm tra lại."), "loi"),
     };
+    // Cổng chỉ cho bước 8 "Hoàn thành" khi hồ sơ đã có submittedAt: đọc lại để ghi vào trạng thái, không đoán. Lỗi đọc không làm hỏng bước 8.
+    let (da_gui_luc, trang_thai_ho_so) = match sess.get_json(&format!("/submissions/{sid}"), &[]).await {
+        Ok(v) => kiem_tra_lai::doc_gui(&v),
+        Err(_) => (None, None),
+    };
+    let ghi_gui = kiem_tra_lai::ghi_chu_gui(&da_gui_luc, &trang_thai_ho_so);
     cap_nhat(dir, |t| {
+        let ghi_chu = format!("{ghi_chu} {ghi_gui}");
         t.ghi_chu = Some(match t.ghi_chu.take() {
             Some(cu) if !rieng && !cu.is_empty() => format!("{cu} {ghi_chu}"),
-            _ => ghi_chu.clone(),
+            _ => ghi_chu,
         });
+        t.da_gui_luc = da_gui_luc.clone();
+        t.trang_thai_ho_so = trang_thai_ho_so.clone();
     });
     let mut e = lo::su_kien("kiem_tra_lai");
     e.ket_qua = Some(ket_qua);
@@ -1066,6 +1081,36 @@ async fn gui_buoc_8(username: String, state: State<'_, AppState>) -> Result<(), 
     let dir = lo::unit_dir(&lo.root, &u.username)?;
     let (sess, tk) = ngu_canh_xoa(&lo, &u, &state.cookies).await?;
     buoc_8_kiem_tra(&sess, &tk.ho_so.id, &dir, true).await
+}
+
+/// Nút "Gửi hồ sơ": hành động SUBMIT của cổng (gửi hồ sơ lên cấp trên), rồi đọc lại `submittedAt`. Cần tên người vận hành và `choPhepGuiThat`.
+/// Không ký gửi thay lãnh đạo; nếu cổng chuyển sang chờ lãnh đạo thì ghi rõ vào ghi chú.
+#[tauri::command]
+async fn gui_ho_so(username: String, state: State<'_, AppState>) -> Result<(), String> {
+    let lo = lay_lo(&state)?;
+    let u = tim_unit(&lo, &username)?.clone();
+    let nguoi = khoa(&state.nguoi).clone();
+    if nguoi.trim().is_empty() {
+        return Err("Nhập tên người vận hành trước khi gửi hồ sơ".into());
+    }
+    if !lo.cfg.settings.cho_phep_gui_that {
+        return Err("Chế độ khô: gửi hồ sơ bị khóa. Bật choPhepGuiThat trong cấu hình lô để chạy thật.".into());
+    }
+    let _khoa = KhoaTaiKhoan::lay(&state.dang_chay, &u.username)?;
+    let dir = lo::unit_dir(&lo.root, &u.username)?;
+    let (sess, tk) = ngu_canh_xoa(&lo, &u, &state.cookies).await?;
+    let kq = gui_ho_so::gui(&sess, &tk.ho_so.id).await;
+    let mut e = lo::su_kien("gui_ho_so");
+    e.nguoi = Some(&nguoi);
+    e.ket_qua = Some(if kq.is_ok() { "ok".into() } else { "loi".into() });
+    let _ = lo::ghi_nhat_ky(&dir, &e);
+    let k = kq?;
+    cap_nhat(&dir, |t| {
+        t.da_gui_luc = k.da_gui_luc.clone();
+        t.trang_thai_ho_so = k.trang_thai.clone();
+        t.ghi_chu = Some(kiem_tra_lai::ghi_chu_gui(&k.da_gui_luc, &k.trang_thai) + if k.con_cho_lanh_dao { " Đang chờ lãnh đạo đơn vị xác nhận và ký gửi trên Desktop." } else { "" });
+    });
+    Ok(())
 }
 
 async fn gui_va_ghi_loi(lo: &Lo, u: &UnitEntry, ck: &KhoCookie, nguoi: &str, so: usize) -> Result<(), String> {
@@ -1160,15 +1205,22 @@ fn chon_excel(username: String, duong_dan: String, state: State<AppState>) -> Re
     if !nguon.is_file() {
         return Err(format!("Không thấy tệp: {}", nguon.display()));
     }
-    if !nguon.extension().is_some_and(|e| e.eq_ignore_ascii_case("xlsx")) {
-        return Err("Chỉ nhận tệp .xlsx".into());
+    let xls = chuyen_xls::la_xls(&nguon);
+    if !xls && !nguon.extension().is_some_and(|e| e.eq_ignore_ascii_case("xlsx")) {
+        return Err("Chỉ nhận tệp .xlsx hoặc .xls".into());
     }
-    let ten = nguon.file_name().map(|n| n.to_string_lossy().into_owned()).ok_or("Tên tệp không hợp lệ")?;
+    let ten_goc = nguon.file_name().map(|n| n.to_string_lossy().into_owned()).ok_or("Tên tệp không hợp lệ")?;
+    let ten = chuyen_xls::ten_xlsx(&ten_goc);
     let dich = dir.join("nguon").join(&ten);
-    let cung = nguon.canonicalize().ok().zip(dich.canonicalize().ok()).is_some_and(|(a, b)| a == b);
-    if !cung {
-        lo::tao_thu_muc(&dir)?;
-        std::fs::copy(&nguon, &dich).map_err(|e| format!("Không chép được tệp vào {}: {e}", dich.display()))?;
+    lo::tao_thu_muc(&dir)?;
+    if xls {
+        // .xls: đổi sang .xlsx ngay trong nguon/ (chỉ giữ giá trị ô); tệp .xls gốc không bị sửa
+        chuyen_xls::xls_sang_xlsx(&nguon, &dich)?;
+    } else {
+        let cung = nguon.canonicalize().ok().zip(dich.canonicalize().ok()).is_some_and(|(a, b)| a == b);
+        if !cung {
+            std::fs::copy(&nguon, &dich).map_err(|e| format!("Không chép được tệp vào {}: {e}", dich.display()))?;
+        }
     }
     lo::dat_excel(&dir, &format!("nguon/{ten}"))?;
     dat_lai_sau_doi(&dir, "Đã đổi tệp Excel");
@@ -1203,6 +1255,95 @@ async fn ngu_canh_xoa(lo: &Lo, u: &UnitEntry, ck: &KhoCookie) -> Result<(Session
     let dir = lo::unit_dir(&lo.root, &u.username)?;
     let tk: ket_noi::TaiKhoan = lo::doc_json(&dir.join("tai-khoan.json")).map_err(|_| "Chưa biết hồ sơ của tài khoản: bấm \"Kiểm tra kết nối\" trước".to_string())?;
     Ok((mo_phien_don_vi(lo, u, ck).await?, tk))
+}
+
+// ---------------------------------------------------------------------------
+// Force Sync: kiểm tra Excel -> xóa hết dữ liệu trên cổng -> chuẩn bị -> gửi đồng bộ
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Serialize)]
+struct KetQuaForceSync {
+    #[serde(rename = "daXoa")]
+    da_xoa: usize,
+    #[serde(rename = "daGui")]
+    da_gui: usize,
+}
+
+/// Điều kiện của tệp Excel trước khi xóa cổng (thuần): phải có dữ liệu, không còn dòng lỗi chặn, và đơn vị phải ở chế độ đủ bộ biểu
+/// (chế độ một biểu mà xóa hết cổng thì các biểu còn lại mất không phục hồi được).
+fn dieu_kien_force_sync(mode: &str, tong_dong: u64, dong_loi: u64) -> Result<(), String> {
+    if mode == "single" {
+        return Err("Đơn vị này chỉ nạp một biểu (mode single): Force Sync xóa hết cổng nên không dùng được. Dùng Chuẩn bị và Gửi.".into());
+    }
+    if tong_dong == 0 {
+        return Err("Tệp Excel không có dòng dữ liệu nào: không xóa cổng.".into());
+    }
+    if dong_loi > 0 {
+        return Err(format!("Tệp Excel còn {dong_loi} dòng lỗi chặn: sửa Excel rồi chạy lại, chưa xóa gì trên cổng."));
+    }
+    Ok(())
+}
+
+/// Kết quả xóa phải sạch hoàn toàn mới được gửi lại (thuần). Trả tổng số dòng đã xóa.
+fn kiem_tra_ket_qua_xoa(kq: &[xoa_du_lieu::KetQuaXoa]) -> Result<usize, String> {
+    let con: Vec<String> = kq.iter()
+        .filter(|k| k.loi.is_some() || k.con_lai != Some(0))
+        .map(|k| format!("{} (còn {})", k.ten, k.con_lai.map_or("?".to_string(), |n| n.to_string())))
+        .collect();
+    if con.is_empty() {
+        Ok(kq.iter().map(|k| k.da_xoa).sum())
+    } else {
+        Err(format!("Cổng chưa sạch sau khi xóa: {}", con.join("; ")))
+    }
+}
+
+async fn force_sync_mot(lo: &Lo, u: &UnitEntry, ck: &KhoCookie, nguoi: &str) -> Result<KetQuaForceSync, String> {
+    let dir = lo::unit_dir(&lo.root, &u.username)?;
+    // Bước 1/4: kiểm tra kết nối và Excel. Chưa động vào cổng; lỗi ở đây thì cổng còn nguyên.
+    let b1 = |e: String| format!("Bước 1/4 (kiểm tra Excel), chưa xóa gì trên cổng: {e}");
+    let k = kiem_tra_mot(lo, u, ck).await.map_err(b1)?;
+    if let Some(c) = k.chan {
+        return Err(b1(format!("{}: {}", c.ma, c.thong_bao)));
+    }
+    let tk: ket_noi::TaiKhoan = lo::doc_json(&dir.join("tai-khoan.json")).map_err(|e| b1(e))?;
+    let sess = mo_phien_don_vi(lo, u, ck).await.map_err(b1)?;
+    let kf = kiem_tra_file(lo, u, &tk, &sess, &dir).await.map_err(b1)?;
+    dieu_kien_force_sync(&u.mode, kf.kq.tong_dong, kf.kq.dong_loi).map_err(|e| { dat_loi(&dir, Buoc::CanXemXet, &e); b1(e) })?;
+    // Bước 2/4: xóa hết dữ liệu trên cổng (không hoàn tác được).
+    let kq_xoa = xoa_mot(lo, u, ck, nguoi).await.map_err(|e| format!("Bước 2/4 (xóa cổng) lỗi, cổng có thể đã xóa dở: {e}"))?;
+    let da_xoa = kiem_tra_ket_qua_xoa(&kq_xoa).map_err(|e| format!("Bước 2/4 (xóa cổng): {e}. Chưa gửi lại; bấm Force Sync lần nữa hoặc Chuẩn bị rồi Gửi."))?;
+    // Bước 3/4: chuẩn bị lại trên cổng đã trống (mọi dòng Excel thành dòng tạo mới).
+    let b3 = |e: String| format!("Bước 3/4 (chuẩn bị) lỗi, cổng đã bị xóa: {e}. Sửa rồi bấm Chuẩn bị và Gửi để đưa dữ liệu lên lại");
+    chuan_bi_va_ghi_loi(lo, u, ck).await.map_err(b3)?;
+    let tt = lo::doc_trang_thai(&dir);
+    if tt.buoc != Buoc::SanSangGui {
+        return Err(b3(tt.loi.unwrap_or_else(|| format!("đơn vị chưa sẵn sàng gửi (bước {:?})", tt.buoc))));
+    }
+    let so = tt.thay_doi.as_ref().map_or(0, |t| t.tong);
+    // Bước 4/4: gửi đồng bộ.
+    let mut e = lo::su_kien("force_sync");
+    e.nguoi = Some(nguoi);
+    e.so_thay_doi = Some(so);
+    let _ = lo::ghi_nhat_ky(&dir, &e);
+    gui_va_ghi_loi(lo, u, ck, nguoi, so).await
+        .map_err(|e| format!("Bước 4/4 (gửi) lỗi, cổng đã bị xóa: {e}. Bấm Gửi lại hoặc Chuẩn bị rồi Gửi"))?;
+    Ok(KetQuaForceSync { da_xoa, da_gui: so })
+}
+
+/// Force Sync một đơn vị: kiểm tra Excel hợp lệ, xóa hết dữ liệu trên cổng, rồi gửi đồng bộ Excel mới. Điều kiện như Xóa và Gửi: có tên người vận hành và `choPhepGuiThat`.
+#[tauri::command]
+async fn force_sync(username: String, state: State<'_, AppState>) -> Result<KetQuaForceSync, String> {
+    let lo = lay_lo(&state)?;
+    let u = tim_unit(&lo, &username)?.clone();
+    let nguoi = khoa(&state.nguoi).clone();
+    if nguoi.trim().is_empty() {
+        return Err("Nhập tên người vận hành trước khi Force Sync (ghi vào nhật ký)".into());
+    }
+    if !lo.cfg.settings.cho_phep_gui_that {
+        return Err("Chế độ khô: Force Sync bị khóa. Bật choPhepGuiThat trong cấu hình lô để chạy thật (xóa không hoàn tác được).".into());
+    }
+    let _khoa = KhoaTaiKhoan::lay(&state.dang_chay, &u.username)?;
+    force_sync_mot(&lo, &u, &state.cookies, &nguoi).await
 }
 
 /// Kết quả "Tổng quan" gửi giao diện: lời chào, đơn vị, kỳ và số liệu như trang làm việc Desktop.
@@ -1250,30 +1391,93 @@ async fn xoa_du_lieu(username: String, state: State<'_, AppState>) -> Result<Vec
         return Err("Chế độ khô: xóa bị khóa. Bật choPhepGuiThat trong cấu hình lô để xóa thật (không hoàn tác được).".into());
     }
     let _khoa = KhoaTaiKhoan::lay(&state.dang_chay, &u.username)?;
+    xoa_mot(&lo, &u, &state.cookies, &nguoi).await
+}
+
+/// Xóa toàn bộ dữ liệu của hồ sơ một đơn vị (đã kiểm tra tên người vận hành, `choPhepGuiThat` và đã giữ khóa tài khoản ở nơi gọi).
+async fn xoa_mot(lo: &Lo, u: &UnitEntry, ck: &KhoCookie, nguoi: &str) -> Result<Vec<xoa_du_lieu::KetQuaXoa>, String> {
     let dir = lo::unit_dir(&lo.root, &u.username)?;
-    let (sess, tk) = ngu_canh_xoa(&lo, &u, &state.cookies).await?;
+    let (sess, tk) = ngu_canh_xoa(lo, u, ck).await?;
     let tb = lo::thiet_bi(&lo.root)?;
     let ch = cau_hinh_gui(&lo.cfg.settings);
     let may = may::doc();
     let mut e = lo::su_kien("xoa_du_lieu_bat_dau");
-    e.nguoi = Some(&nguoi);
+    e.nguoi = Some(nguoi);
     e.may = Some(&may);
     let _ = lo::ghi_nhat_ky(&dir, &e);
     // Như Desktop: xóa là thay đổi DELETE đẩy qua gói thay đổi; cổng chặn xóa trực tiếp qua REST với phiên web
-    let tham_so = xoa_du_lieu::ThamSoXoa { dir: &dir, period_id: &tk.ky_id, submission_id: &tk.ho_so.id, device_id: &tb.device_id, toi_da: lo.cfg.settings.changeset_max_changes, nguoi: &nguoi, cau_hinh: &ch };
+    let tham_so = xoa_du_lieu::ThamSoXoa { dir: &dir, period_id: &tk.ky_id, submission_id: &tk.ho_so.id, device_id: &tb.device_id, toi_da: lo.cfg.settings.changeset_max_changes, nguoi, cau_hinh: &ch };
     let kq = xoa_du_lieu::xoa_qua_goi(&sess, &tham_so, &xoa_du_lieu::bieu_mac_dinh()).await;
     let tong = kq.as_ref().map(|k| k.iter().map(|x| x.da_xoa).sum::<usize>()).ok();
     let mut e2 = lo::su_kien("xoa_du_lieu_xong");
     e2.so_thay_doi = tong;
     e2.ket_qua = Some(if kq.is_ok() { "ok" } else { "loi" });
-    e2.nguoi = Some(&nguoi);
+    e2.nguoi = Some(nguoi);
     e2.may = Some(&may);
     let _ = lo::ghi_nhat_ky(&dir, &e2);
     dat_lai_sau_doi(&dir, "Đã xóa dữ liệu trên cổng");
     kq
 }
 
+/// Chạy Force Sync không giao diện: `vtvl-batch --force-sync-cli <lo.json> "<người vận hành>" <username>...`.
+/// Dùng đúng hàm `force_sync_mot` như nút Force Sync; cùng điều kiện (`choPhepGuiThat`, tên người vận hành). Dừng ở đơn vị lỗi đầu tiên. Không in mật khẩu.
+fn chay_force_sync_cli(args: &[String]) -> i32 {
+    if args.len() < 3 {
+        eprintln!("Cách dùng: vtvl-batch --force-sync-cli <lo.json> \"<người vận hành>\" <username>...");
+        return 2;
+    }
+    let p = PathBuf::from(&args[0]);
+    let nguoi = args[1].trim().to_string();
+    let cfg = match LoConfig::nap(&p) { Ok(c) => c, Err(e) => { eprintln!("{e}"); return 2; } };
+    if nguoi.is_empty() { eprintln!("Nhập tên người vận hành (ghi vào nhật ký)"); return 2; }
+    if !cfg.settings.cho_phep_gui_that { eprintln!("Chế độ khô: Force Sync bị khóa (choPhepGuiThat=false)"); return 2; }
+    let root = lo::data_root(&p, &cfg);
+    for u in &cfg.units {
+        let dir = match lo::unit_dir(&root, &u.username) { Ok(d) => d, Err(e) => { eprintln!("{e}"); return 2; } };
+        if let Err(e) = lo::tao_thu_muc(&dir) { eprintln!("{e}"); return 2; }
+    }
+    let goc = lo::goc_ung_dung(&p);
+    let lo = Lo { cfg, root, goc };
+    let ck = KhoCookie::default();
+    for ten in &args[2..] {
+        let u = match tim_unit(&lo, ten) { Ok(u) => u.clone(), Err(e) => { println!("LOI {ten}: {e}"); return 2; } };
+        if !u.enabled { println!("LOI {}: đơn vị đang tắt trong lô", u.username); return 2; }
+        println!("BAT DAU {}", u.username);
+        match tauri::async_runtime::block_on(force_sync_mot(&lo, &u, &ck, &nguoi)) {
+            Ok(kq) => println!("OK {}: đã xóa {} dòng, đã gửi {} thay đổi", u.username, kq.da_xoa, kq.da_gui),
+            Err(e) => { println!("LOI {}: {}", u.username, e); return 1; }
+        }
+    }
+    0
+}
+
+/// Đối chiếu không giao diện (chỉ đọc cổng): `vtvl-batch --chuan-bi-cli <lo.json> <username>...` chạy "Chuẩn bị" rồi in trạng thái.
+fn chay_chuan_bi_cli(args: &[String]) -> i32 {
+    if args.len() < 2 { eprintln!("Cách dùng: vtvl-batch --chuan-bi-cli <lo.json> <username>..."); return 2; }
+    let p = PathBuf::from(&args[0]);
+    let cfg = match LoConfig::nap(&p) { Ok(c) => c, Err(e) => { eprintln!("{e}"); return 2; } };
+    let root = lo::data_root(&p, &cfg);
+    let goc = lo::goc_ung_dung(&p);
+    let lo = Lo { cfg, root, goc };
+    let ck = KhoCookie::default();
+    for ten in &args[1..] {
+        let u = match tim_unit(&lo, ten) { Ok(u) => u.clone(), Err(e) => { println!("LOI {ten}: {e}"); return 2; } };
+        let r = tauri::async_runtime::block_on(chuan_bi_va_ghi_loi(&lo, &u, &ck));
+        let dir = match lo::unit_dir(&lo.root, &u.username) { Ok(d) => d, Err(_) => continue };
+        let tt = lo::doc_trang_thai(&dir);
+        println!("{} {}: bước {:?}, thay đổi còn lại {}, {}", if r.is_ok() { "OK" } else { "LOI" }, u.username, tt.buoc, tt.thay_doi.as_ref().map_or(0, |t| t.tong), tt.ghi_chu.clone().or(tt.loi.clone()).unwrap_or_default());
+    }
+    0
+}
+
 fn main() {
+    let a: Vec<String> = std::env::args().skip(1).collect();
+    if a.first().map(String::as_str) == Some("--chuan-bi-cli") {
+        std::process::exit(chay_chuan_bi_cli(&a[1..]));
+    }
+    if a.first().map(String::as_str) == Some("--force-sync-cli") {
+        std::process::exit(chay_force_sync_cli(&a[1..]));
+    }
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .manage(AppState::default())
@@ -1281,7 +1485,7 @@ fn main() {
             if let Ok(t) = app.path().resource_dir() { lo::dat_thu_muc_tai_nguyen(t); }
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![khoi_dong_khoa, khoi_tao_lo_trong, kiem_tra_ma, kiem_tra_tep, lay_ket_qua_kiem_tra, lo_nap, them_don_vi, sua_don_vi, xoa_don_vi, lay_bearer, lay_nguoi, chon_excel, chon_ho_so, xoa_dem, tong_quan, gui_buoc_8, xoa_du_lieu, dang_nhap, dat_cookie, dat_nguoi, lay_trang_thai, kiem_tra_ket_noi_tat_ca, tq_lay_cay, tq_tao, quan_tri::qt_tai_khoan, quan_tri::qt_dat_tai_khoan, quan_tri::qt_ds_tai_khoan_da_luu, quan_tri::qt_chuyen_tai_khoan, quan_tri::qt_xoa_tai_khoan_da_luu, quan_tri::qt_danh_sach, quan_tri::qt_cac_ky, quan_tri::qt_chi_tiet, quan_tri::qt_bieu, cap_nhat::kiem_tra_cap_nhat, cap_nhat::mo_trang_tai, cap_nhat::tai_ban_cap_nhat, cap_nhat::cai_ban_cap_nhat, tham_dinh::tham_dinh_excel, truong_don_vi::tdv_thong_tin, truong_don_vi::tdv_danh_sach, quan_tri::qt_xuat_excel, bao_cao_cay::bc_cay_trang_thai, bao_cao_cay::bc_cay_xuat, bao_cao_tien_do::bc_tien_do_xuat, tq_xuat_excel, chuan_bi, chuan_bi_tat_ca, gui, gui_lai, gui_tat_ca])
+        .invoke_handler(tauri::generate_handler![khoi_dong_khoa, khoi_tao_lo_trong, kiem_tra_ma, kiem_tra_tep, lay_ket_qua_kiem_tra, lo_nap, them_don_vi, sua_don_vi, xoa_don_vi, lay_bearer, lay_nguoi, chon_excel, chon_ho_so, xoa_dem, tong_quan, gui_buoc_8, gui_ho_so, xoa_du_lieu, force_sync, dang_nhap, dat_cookie, dat_nguoi, lay_trang_thai, kiem_tra_ket_noi_tat_ca, tq_lay_cay, tq_tao, quan_tri::qt_tai_khoan, quan_tri::qt_dat_tai_khoan, quan_tri::qt_ds_tai_khoan_da_luu, quan_tri::qt_chuyen_tai_khoan, quan_tri::qt_xoa_tai_khoan_da_luu, quan_tri::qt_danh_sach, quan_tri::qt_cac_ky, quan_tri::qt_chi_tiet, quan_tri::qt_bieu, cap_nhat::kiem_tra_cap_nhat, cap_nhat::mo_trang_tai, cap_nhat::tai_ban_cap_nhat, cap_nhat::cai_ban_cap_nhat, tham_dinh::tham_dinh_excel, bao_cao_tham_dinh::tham_dinh_bao_cao, truong_don_vi::tdv_thong_tin, truong_don_vi::tdv_danh_sach, quan_tri::qt_xuat_excel, bao_cao_cay::bc_cay_trang_thai, bao_cao_cay::bc_cay_xuat, bao_cao_tien_do::bc_tien_do_xuat, tq_xuat_excel, chuan_bi, chuan_bi_tat_ca, gui, gui_lai, gui_tat_ca])
         .run(tauri::generate_context!())
         .expect("error");
 }
@@ -1391,5 +1595,22 @@ mod tests {
     #[test]
     fn hash_is_hex_sha256() {
         assert_eq!(sha256_hex(b"abc"), "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
+    }
+    #[test]
+    fn force_sync_chi_xoa_khi_excel_hop_le() {
+        assert!(super::dieu_kien_force_sync("full", 100, 0).is_ok());
+        assert!(super::dieu_kien_force_sync("full", 0, 0).unwrap_err().contains("không có dòng"));
+        assert!(super::dieu_kien_force_sync("full", 100, 3).unwrap_err().contains("3 dòng lỗi"));
+        assert!(super::dieu_kien_force_sync("single", 100, 0).unwrap_err().contains("một biểu"));
+    }
+
+    #[test]
+    fn force_sync_chi_gui_khi_cong_da_sach() {
+        use crate::xoa_du_lieu::KetQuaXoa;
+        let kq = |da, con, loi: Option<&str>| KetQuaXoa { khoa: "a1".into(), ten: "A1".into(), da_xoa: da, con_lai: con, loi: loi.map(str::to_string) };
+        assert_eq!(super::kiem_tra_ket_qua_xoa(&[kq(5, Some(0), None), kq(7, Some(0), None)]), Ok(12));
+        assert!(super::kiem_tra_ket_qua_xoa(&[kq(5, Some(2), None)]).unwrap_err().contains("còn 2"));
+        assert!(super::kiem_tra_ket_qua_xoa(&[kq(5, None, None)]).unwrap_err().contains("còn ?"));
+        assert!(super::kiem_tra_ket_qua_xoa(&[kq(5, Some(0), Some("lỗi"))]).is_err());
     }
 }
