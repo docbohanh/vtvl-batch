@@ -4356,7 +4356,7 @@ dependencies = [
 
 [[package]]
 name = "vtvl-batch"
-version = "1.0.20"
+version = "1.0.21"
 dependencies = [
  "bcrypt",
  "calamine",

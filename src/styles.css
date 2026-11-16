@@ -929,3 +929,25 @@ button.cay__mui:hover { color: var(--chinh); background: var(--chinh-nen); }
 .qt__kieu-tim button:hover { color: var(--chu); }
 .qt__kieu-tim .qt__kieu-tim--chon { color: var(--chinh-chu); background: var(--chinh); }
 @media (prefers-reduced-motion: reduce) { .qt__kieu-tim button { transition: none; } }
+
+/* Báo cáo thẩm định dạng văn bản + xuất DOCX */
+.td__hanh-dong { display: flex; align-items: center; gap: 8px; flex: none; }
+.td__tab { display: flex; align-items: center; gap: 4px; padding: 0 20px; border-bottom: 1px solid var(--vien); }
+.td__tab-nut { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 14px; border: 0; border-bottom: 2px solid transparent; background: none; color: var(--chu-phu); font: inherit; font-weight: 600; cursor: pointer; transition: color 150ms, border-color 150ms; }
+.td__tab-nut:hover { color: var(--chu); }
+.td__tab-nut:focus-visible { outline: 2px solid var(--cta); outline-offset: -2px; }
+.td__tab-nut--chon { color: var(--chu); border-bottom-color: var(--cta); }
+.td__xuat { margin: 0 0 0 auto; font-size: 0.85rem; color: var(--tot); overflow-wrap: anywhere; }
+.td__xuat--loi { color: var(--xau); }
+.td__giay { display: grid; gap: 8px; max-width: 880px; width: 100%; margin: 0 auto; }
+.td__giay p { margin: 0; line-height: 1.55; }
+.td__giay-chon { margin-bottom: 4px; }
+.td__g-tieu-de { margin: 4px 0 0; text-align: center; font-size: 1.25rem; }
+.td__g-phu { text-align: center; color: var(--chu-phu); font-style: italic; font-size: 0.85rem; }
+.td__g-h1 { margin: 14px 0 0; padding-bottom: 4px; border-bottom: 1px solid var(--vien); font-size: 1.05rem; }
+.td__g-h2 { margin: 8px 0 0; font-size: 0.95rem; }
+.td__g-dong { position: relative; padding-left: 16px; }
+.td__g-dong::before { content: '•'; position: absolute; left: 4px; }
+@media (prefers-reduced-motion: reduce) { .td__tab-nut { transition: none; } }
+.td .hop-kt__dau { border-bottom: 0; padding-bottom: 4px; }
+.td__tab-nut:disabled { opacity: 0.45; cursor: not-allowed; }

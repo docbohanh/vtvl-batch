@@ -1,17 +1,29 @@
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
+import { save } from '@tauri-apps/plugin-dialog';
 import { api, loiThanhChuoi } from '../api';
+import { dungBaoCao, taoDocx, tenTepDocx, type Khoi } from '../baoCaoVanBan';
 import { demMucTD, locNhomTD, mauDanhGia, mauKetLuan, NHAN_KET_LUAN, NHAN_MUC_LOI, type MauTD } from '../quanTri';
-import type { BaoCaoTD, NhomTD } from '../types';
-import { IcCanhBao, IcDong, IcLamMoi, IcTim } from './Icons';
+import { raSoatCong, type DongNguon } from '../raSoatCong';
+import type { BaoCaoTD, DuLieuBieuQt, NhomTD } from '../types';
+import { IcCanhBao, IcDong, IcLamMoi, IcTaiXuong, IcTim } from './Icons';
 
 const SO_MUC_HIEN = 100;
 const CAC_MUC = ['BB', 'CB', 'TK'] as const;
+type Tab = 'bao_cao' | 'chi_tiet';
+
+const ngayHomNay = (): string => {
+  const d = new Date();
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()}`;
+};
 
 export interface BaoCaoThamDinhDialogProps {
   open: boolean;
   /** Đường dẫn tệp Excel đang thẩm định. */
   duongDan: string;
   tenTep: string;
+  /** Dữ liệu các biểu của tệp (C1, A1, A2) để rà soát theo bộ mã L01–L10, CL1–CL4 ngay trên máy. */
+  bieu: readonly DuLieuBieuQt[];
   onClose: () => void;
 }
 
@@ -19,7 +31,7 @@ export interface BaoCaoThamDinhDialogProps {
  * Báo cáo thẩm định theo skill `vtvl-tham-dinh`: kết luận A/B/C/D, 18 chỉ số, phiếu 12 nội dung và danh sách mã lỗi chi tiết đến từng biểu, cột, dòng.
  * Chạy ngay trên máy bằng lõi thẩm định của công cụ web; không đăng nhập, không gửi gì lên cổng.
  */
-export function BaoCaoThamDinhDialog({ open, duongDan, tenTep, onClose }: BaoCaoThamDinhDialogProps) {
+export function BaoCaoThamDinhDialog({ open, duongDan, tenTep, bieu, onClose }: BaoCaoThamDinhDialogProps) {
   const ref = useRef<HTMLDialogElement>(null);
   const lanTai = useRef(0);
   const [xacNhan, setXacNhan] = useState(true);
@@ -29,6 +41,9 @@ export function BaoCaoThamDinhDialog({ open, duongDan, tenTep, onClose }: BaoCao
   const [muc, setMuc] = useState<string | null>(null);
   const [tim, setTim] = useState('');
   const timTre = useDeferredValue(tim);
+  const [tab, setTab] = useState<Tab>('bao_cao');
+  const [dangXuat, setDangXuat] = useState(false);
+  const [tbXuat, setTbXuat] = useState<{ ok: boolean; noiDung: string } | null>(null);
 
   const chay = useCallback(async (xn: boolean) => {
     const lan = ++lanTai.current; // bỏ kết quả của lần chạy cũ nếu đã đổi tệp hoặc bấm chạy lại
@@ -46,12 +61,36 @@ export function BaoCaoThamDinhDialog({ open, duongDan, tenTep, onClose }: BaoCao
   useEffect(() => {
     const d = ref.current;
     if (!d) return;
-    if (open && !d.open) { setBc(null); setMuc(null); setTim(''); setXacNhan(true); d.showModal(); void chay(true); }
+    if (open && !d.open) { setBc(null); setMuc(null); setTim(''); setXacNhan(true); setTab('bao_cao'); setTbXuat(null); d.showModal(); void chay(true); }
     if (!open && d.open) { lanTai.current++; d.close(); }
   }, [open, chay]);
 
   const nhom = useMemo(() => (bc ? locNhomTD(bc.nhom, muc, timTre) : []), [bc, muc, timTre]);
   const dem = useMemo(() => (bc ? demMucTD(bc.nhom) : {}), [bc]);
+  const rs = useMemo(() => {
+    const dong = (khoa: string): readonly DongNguon[] => bieu.find((b) => b.bieu.khoa === khoa)?.dong ?? [];
+    return bieu.length > 0 ? raSoatCong({ c1: dong('c1'), a1: dong('a1'), a2: dong('a2') }) : null;
+  }, [bieu]);
+  const baoCao = useMemo(
+    () => dungBaoCao(bc, { tenTep, ngay: ngayHomNay(), xacNhan, loiCongCu: dangChay ? 'đang chạy…' : loi ?? undefined }, rs),
+    [bc, tenTep, xacNhan, rs, dangChay, loi],
+  );
+  const coNoiDung = bc !== null || rs !== null;
+
+  async function xuatDocx() {
+    setTbXuat(null);
+    try {
+      const dich = await save({ defaultPath: tenTepDocx(tenTep), filters: [{ name: 'Word', extensions: ['docx'] }] });
+      if (!dich) return;
+      setDangXuat(true);
+      const da = await api.ghiTepDocx(dich, await taoDocx(baoCao));
+      setTbXuat({ ok: true, noiDung: `Đã xuất: ${da}` });
+    } catch (e) {
+      setTbXuat({ ok: false, noiDung: loiThanhChuoi(e) });
+    } finally {
+      setDangXuat(false);
+    }
+  }
 
   return (
     <dialog ref={ref} className="hop-kt td" onClose={onClose} aria-labelledby="td-tieu-de">
@@ -59,15 +98,28 @@ export function BaoCaoThamDinhDialog({ open, duongDan, tenTep, onClose }: BaoCao
         <div>
           <p className="hop-tq__vet">Thẩm định theo mã lỗi</p>
           <h2 id="td-tieu-de">{tenTep}</h2>
-          <p>{bc ? `Công cụ thẩm định ${bc.phienBan}` : 'Chạy lõi thẩm định ngay trên máy, không gửi gì lên cổng'}</p>
+          <p>Rà soát theo bộ mã Vụ Địa phương I (L01–L10, CL1–CL4) ngay trên máy, không gửi gì lên cổng{bc ? ` · bổ sung: công cụ ${bc.phienBan}` : ''}</p>
         </div>
-        <button type="button" className="nut nut--vuong nut--gon" onClick={onClose} aria-label="Đóng"><IcDong /></button>
+        <div className="td__hanh-dong">
+          <button type="button" className="nut nut--chinh" onClick={() => void xuatDocx()} disabled={!coNoiDung || dangChay || dangXuat} title="Xuất báo cáo thẩm định ra tệp Word (.docx)">
+            {dangXuat ? <span className="quay" aria-hidden="true" /> : <IcTaiXuong />} Xuất DOCX
+          </button>
+          <button type="button" className="nut nut--vuong" onClick={onClose} aria-label="Đóng"><IcDong /></button>
+        </div>
       </header>
+      {coNoiDung && (
+        <div className="td__tab" role="tablist" aria-label="Chế độ xem">
+          <button type="button" role="tab" aria-selected={tab === 'bao_cao'} className={`td__tab-nut${tab === 'bao_cao' ? ' td__tab-nut--chon' : ''}`} onClick={() => setTab('bao_cao')}>Báo cáo</button>
+          <button type="button" role="tab" aria-selected={tab === 'chi_tiet'} className={`td__tab-nut${tab === 'chi_tiet' ? ' td__tab-nut--chon' : ''}`} onClick={() => setTab('chi_tiet')} disabled={!bc}>Công cụ thẩm định{bc && <b>{bc.nhom.length}</b>}</button>
+          {tbXuat && <p className={`td__xuat ${tbXuat.ok ? '' : 'td__xuat--loi'}`} role={tbXuat.ok ? 'status' : 'alert'}>{tbXuat.noiDung}</p>}
+        </div>
+      )}
 
       <div className="hop-kt__than" aria-busy={dangChay}>
         {loi && <p className="thong-bao thong-bao--loi" role="alert"><IcCanhBao />{loi}</p>}
-        {dangChay && <p className="hsqt__trang" role="status"><span className="quay" aria-hidden="true" /> Đang thẩm định, lần đầu có thể mất vài chục giây (tải công cụ thẩm định)…</p>}
-        {bc && !dangChay && (
+        {dangChay && <p className="hsqt__trang" role="status"><span className="quay" aria-hidden="true" /> Đang chạy công cụ thẩm định web (phần bổ sung), lần đầu có thể mất vài chục giây vì phải tải công cụ…</p>}
+        {coNoiDung && tab === 'bao_cao' && <BaoCaoVanBan khoi={baoCao} xacNhan={xacNhan} onDoiXacNhan={(v) => { setXacNhan(v); void chay(v); }} />}
+        {bc && !dangChay && tab === 'chi_tiet' && (
           <>
             <KetLuan bc={bc} xacNhan={xacNhan} onDoiXacNhan={(v) => { setXacNhan(v); void chay(v); }} />
             <BangChiSo bc={bc} />
@@ -206,5 +258,35 @@ function NhomLoi({ g, moSan }: { g: NhomTD; moSan: boolean }) {
       )}
       {them > 0 && <div className="bb__them"><span className="bb__phu">Đang hiện {soHien}/{g.chiTiet.length} mục</span><button type="button" className="nut" onClick={() => setSoHien((n) => n + SO_MUC_HIEN)}>Hiện thêm {Math.min(SO_MUC_HIEN, them)}</button><button type="button" className="nut" onClick={() => setSoHien(g.chiTiet.length)}>Hiện tất cả</button></div>}
     </details>
+  );
+}
+
+/** Bản xem của báo cáo văn bản (cùng nội dung với tệp DOCX xuất ra). */
+function BaoCaoVanBan({ khoi, xacNhan, onDoiXacNhan }: { khoi: readonly Khoi[]; xacNhan: boolean; onDoiXacNhan: (v: boolean) => void }) {
+  return (
+    <article className="td__giay" aria-label="Báo cáo thẩm định">
+      <label className="bb__chon td__giay-chon">
+        <input type="checkbox" checked={xacNhan} onChange={(e) => onDoiXacNhan(e.target.checked)} />
+        Hồ sơ đã có xác nhận của người đứng đầu <span className="bb__phu">(bỏ chọn thì mã HS02 có thể xuất hiện)</span>
+      </label>
+      {khoi.map((k, i) => {
+        switch (k.k) {
+          case 'tieu_de': return <h2 key={i} className="td__g-tieu-de">{k.c}</h2>;
+          case 'phu': return <p key={i} className="td__g-phu">{k.c}</p>;
+          case 'h1': return <h3 key={i} className="td__g-h1">{k.c}</h3>;
+          case 'h2': return <h4 key={i} className="td__g-h2">{k.c}</h4>;
+          case 'p': return <p key={i}>{k.c}</p>;
+          case 'dau_dong': return <p key={i} className="td__g-dong">{k.c}</p>;
+          case 'bang': return (
+            <div key={i} className="td__cuon" tabIndex={0}>
+              <table className="td__bang">
+                <thead><tr>{k.cot.map((c) => <th key={c} scope="col">{c}</th>)}</tr></thead>
+                <tbody>{k.hang.map((h, j) => <tr key={j}>{h.map((c, n) => <td key={n} className={n === 0 ? 'td__so-cot' : undefined}>{c}</td>)}</tr>)}</tbody>
+              </table>
+            </div>
+          );
+        }
+      })}
+    </article>
   );
 }

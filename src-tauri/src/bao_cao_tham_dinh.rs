@@ -179,6 +179,23 @@ pub async fn tham_dinh_bao_cao(duong_dan: String, xac_nhan: bool, state: State<'
     chay(&s.node, &script, &excel, &ten, xac_nhan).await
 }
 
+/// Ghi tệp DOCX do giao diện dựng (byte) ra đường dẫn người dùng đã chọn; ép đuôi .docx.
+#[tauri::command]
+pub fn ghi_tep_docx(duong_dan: String, noi_dung: Vec<u8>) -> Result<String, String> {
+    let dich = duong_dich_docx(&duong_dan, &noi_dung)?;
+    std::fs::write(&dich, &noi_dung).map_err(|e| format!("Không ghi được tệp: {e}"))?;
+    Ok(dich.to_string_lossy().into_owned())
+}
+
+/// Kiểm tra đầu vào của `ghi_tep_docx`: có đường dẫn, đúng chữ ký ZIP ("PK"), đuôi .docx.
+pub fn duong_dich_docx(duong_dan: &str, noi_dung: &[u8]) -> Result<std::path::PathBuf, String> {
+    let mut dich = std::path::PathBuf::from(duong_dan.trim());
+    if dich.as_os_str().is_empty() { return Err("Chưa chọn nơi lưu tệp".into()); }
+    if !noi_dung.starts_with(b"PK") { return Err("Nội dung không phải tệp DOCX hợp lệ".into()); }
+    if dich.extension().is_none_or(|x| !x.eq_ignore_ascii_case("docx")) { dich.set_extension("docx"); }
+    Ok(dich)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -190,6 +207,14 @@ mod tests {
       "groups":[{"id":"HS01","muc":"TK","n":1,"ten":"Thiếu sheet","items":[{"bieu":"11. DM","cot":"","dong":"","mota":"Thiếu biểu"}]},
                 {"id":"KT02","muc":"BB","n":7,"ten":"Ô tự tính bị ghi đè","items":[{"id":"KT02","muc":"BB","bieu":"B2_CT","cot":"B","dong":"3–12","giatri":"10/10 ô","mota":"đã tự tính lại","denghi":"Xóa số nhập tay","cancu":"Mục III.2"},{"bieu":"C3","cot":"D","dong":5,"mota":"x"}]},
                 {"id":"HS04","muc":"CB","n":1,"ten":"Thiếu đầu mối","items":[]}]}"#;
+
+    #[test]
+    fn ghi_docx_ep_duoi_va_chan_noi_dung_sai() {
+        assert_eq!(duong_dich_docx("/tmp/a", b"PK\x03\x04").unwrap().to_string_lossy(), "/tmp/a.docx");
+        assert_eq!(duong_dich_docx("/tmp/a.DOCX", b"PK").unwrap().to_string_lossy(), "/tmp/a.DOCX");
+        assert!(duong_dich_docx("  ", b"PK").is_err());
+        assert!(duong_dich_docx("/tmp/a.docx", b"<html>").is_err());
+    }
 
     #[test]
     fn doc_ket_luan_phieu_chi_so() {

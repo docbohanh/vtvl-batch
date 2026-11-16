@@ -65,7 +65,7 @@ export function ThamDinhExcelPage({ kq, duongDan, dangChay, loi, lanNap, onChonT
               </>
             )}
           />
-          <BaoCaoThamDinhDialog open={moBaoCao} duongDan={duongDan} tenTep={kq.tenTep} onClose={() => setMoBaoCao(false)} />
+          <BaoCaoThamDinhDialog open={moBaoCao} duongDan={duongDan} tenTep={kq.tenTep} bieu={kq.bieu} onClose={() => setMoBaoCao(false)} />
         </div>
       )}
     </div>

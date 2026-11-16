@@ -48,6 +48,7 @@ export const api = {
   caiBanCapNhat: (duong: string) => invoke<void>('cai_ban_cap_nhat', { duong }),
   bcCayTrangThai: () => invoke<string | null>('bc_cay_trang_thai'),
   bcCayXuat: (duongDan: string, quetLai: boolean) => invoke<string>('bc_cay_xuat', { duongDan, quetLai }),
+  ghiTepDocx: (duongDan: string, noiDung: Uint8Array) => invoke<string>('ghi_tep_docx', { duongDan, noiDung: Array.from(noiDung) }),
   bcTienDoXuat: (duongDan: string) => invoke<string>('bc_tien_do_xuat', { duongDan }),
   chuanBiTatCa: () => invoke<DonVi[]>('chuan_bi_tat_ca'),
   chuanBi: (username: string) => invoke<void>('chuan_bi', { username }),

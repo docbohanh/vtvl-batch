@@ -257,3 +257,133 @@ test('tìm theo đơn vị cha: tên đơn vị lá không khớp (lá không ph
   const vong = [nut('a', 'A', 'b'), nut('b', 'B', 'a')];
   assert.ok(Array.isArray(locTheoCha(vong, [ho('a', 'A'), ho('b', 'B')], 'A')), 'chu trình cha-con không làm treo');
 });
+
+// ---- Báo cáo thẩm định dạng văn bản / DOCX ----
+import { dungBaoCao, tenTepDocx, documentXml, taoDocx, thoatXml } from '../../src/baoCaoVanBan.ts';
+import JSZip from 'jszip';
+import { raSoatCong } from '../../src/raSoatCong.ts';
+
+const bcMau = () => ({
+  phienBan: 'TD 3.0', ketLuan: 'C', lyDo: ['Còn 1 nhóm lỗi bắt buộc sửa'],
+  phieu: [{ tt: 1, noiDung: 'Hồ sơ', ketQua: 'Đạt', bb: 0, cb: 1, yeuCau: '' }],
+  chiSo: [{ so: 1, ten: 'VTVL đủ căn cứ', tu: null, mau: null, tuTen: '', mauTen: '', giaTri: '100%', danhGia: 'Đạt', nguong: '' }],
+  nhom: [
+    { id: 'A101', muc: 'BB', soLuong: 3, ten: 'Thiếu điều/khoản', chiTiet: [{ bieu: 'A1', cot: 'D', dong: '108', ma: 'NV.1', giaTri: 'Quyết định 9087', moTa: 'Thiếu điều', deNghi: 'Bổ sung', canCu: '' }] },
+    { id: 'B107', muc: 'CB', soLuong: 667, ten: 'Phút/SP là bội của 480', chiTiet: [{ bieu: 'B1', cot: 'F', dong: '5', ma: '', giaTri: '480', moTa: '', deNghi: '', canCu: '' }] },
+    { id: 'B106', muc: 'CB', soLuong: 10, ten: 'Phút/SP trên 4.800', chiTiet: [] },
+    { id: 'KT09', muc: 'TK', soLuong: 1, ten: 'Thông tin', chiTiet: [] },
+  ],
+});
+
+test('báo cáo văn bản: rà soát Cổng là căn cứ chính, công cụ web chỉ bổ sung, BB trước CB', () => {
+  const rs = raSoatCong({ c1: [{ so: 3, duLieu: { A: 'X', B: 'Y', C: 'Viên chức', D: 'Mức chung 1.904 giờ' } }], a1: [], a2: [] });
+  const k = dungBaoCao(bcMau(), { tenTep: 'x.xlsx', ngay: '16/11/2026', xacNhan: true }, rs);
+  const h1 = k.filter((b) => b.k === 'h1').map((b) => b.c);
+  assert.match(h1[0], /^1\. Rà soát dữ liệu theo bộ mã của Vụ Địa phương I/);
+  assert.match(h1[1], /^2\. Bổ sung: công cụ thẩm định/);
+  assert.equal(h1.at(-1), '3. Giới hạn của báo cáo');
+  const bangCB = k.find((b) => b.k === 'bang' && b.cot[0] === 'Mã' && b.cot[1] === 'Số dòng');
+  assert.deepEqual(bangCB.hang.map((h) => h[0]), ['B107', 'B106']);
+  assert.match(bangCB.hang[0][2], /Ví dụ: B1!F dòng 5 \(480\)/);
+});
+
+test('báo cáo văn bản: công cụ web chưa chạy được vẫn có phần rà soát và nêu lý do', () => {
+  const k = dungBaoCao(null, { tenTep: 'x.xlsx', ngay: '16/11/2026', xacNhan: false, loiCongCu: 'Không có mạng' }, raSoatCong({ c1: [], a1: [], a2: [] }));
+  assert.ok(k.some((b) => b.k === 'p' && b.c === 'Chưa chạy được: Không có mạng'));
+  assert.ok(k.some((b) => b.k === 'p' && b.c.startsWith('Mức ưu tiên: 1 - Ưu tiên chỉnh sửa')));
+});
+
+const c1 = (so, a, b, c, d, g = '') => ({ so, duLieu: { A: a, B: b, C: c, D: d, G: g } });
+const maDong = (rs, so) => rs.chiTiet.find((r) => r.dong === so)?.maLoi ?? [];
+const QD = 'Quyết định số 1261/QĐ-UBND ngày 01/02/2026';
+
+test('rà soát C1: L01, L10, L08 theo định nghĩa của báo cáo; "Đề nghị bổ sung" không bị L01', () => {
+  const rs = raSoatCong({ c1: [c1(3, 'uuu', '', '', ''), c1(4, 'A', 'B', 'Viên chức', 'Tiếp tục sử dụng'), c1(5, 'A2', 'B2', 'Viên chức', '', 'Đề nghị bổ sung'), c1(6, 'A3', 'B3', 'Viên chức', QD)], a1: [], a2: [] });
+  assert.deepEqual(maDong(rs, 3), ['L10', 'L08', 'L01']);
+  assert.deepEqual(maDong(rs, 4), ['L01']);
+  assert.deepEqual(maDong(rs, 5), []);
+  assert.deepEqual(maDong(rs, 6), []);
+  assert.equal(rs.dongLoi, 2);
+});
+
+test('rà soát C1: L02, L03, L03b, L03c', () => {
+  const rs = raSoatCong({ c1: [
+    c1(3, 'A', 'B1x', 'Viên chức', 'Chưa có quyết định phê duyệt'),
+    c1(4, 'B', 'B2x', 'Viên chức', 'Quyết định của 02 trường Trung cấp đã sáp nhập'),
+    c1(5, 'C', 'B3x', 'Viên chức', 'Quyết định số …/QĐ-UBND'),
+    c1(6, 'D', 'B4x', 'Viên chức', 'Quyết định bổ nhiệm ông A số 55/QĐ-UBND'),
+    c1(7, 'E', 'B5x', 'Viên chức', 'Nghị định 150/2025/NĐ-CP'),
+  ], a1: [], a2: [] });
+  assert.deepEqual(maDong(rs, 3), ['L02', 'L03']);
+  assert.deepEqual(maDong(rs, 4), ['L03']);
+  assert.deepEqual(maDong(rs, 5), ['L03', 'L03c']);
+  assert.deepEqual(maDong(rs, 6), ['L03b']);
+  assert.deepEqual(maDong(rs, 7), []);
+});
+
+test('rà soát C1: L07 chỉ cho Chủ tịch/Phó Chủ tịch UBND ghi Công chức', () => {
+  const rs = raSoatCong({ c1: [c1(3, 'A', 'Chủ tịch UBND', 'Công chức', QD), c1(4, 'B', 'Phó Chủ tịch UBND', 'Cán bộ', QD), c1(5, 'C', 'Công chức văn phòng', 'Công chức', QD)], a1: [], a2: [] });
+  assert.deepEqual(maDong(rs, 3), ['L07']);
+  assert.deepEqual(maDong(rs, 4), []);
+  assert.equal(rs.mucUuTien, '1 - Ưu tiên chỉnh sửa');
+});
+
+test('rà soát C1: L09 lập theo người, không tính số sau hạng/bậc; CL1, CL2, CL3, CL4 không tính vào dòng lỗi', () => {
+  const rs = raSoatCong({ c1: [
+    c1(3, 'A', 'Chuyên viên 1', 'Công chức', QD), c1(4, 'B', 'Chuyên viên 2', 'Công chức', QD),
+    c1(5, 'C', 'Giáo viên hạng 1', 'Viên chức', QD), c1(6, 'D', 'Giáo viên hạng 2', 'Viên chức', QD),
+    c1(7, 'E', 'Kế toán', 'Viên chức', QD), c1(8, 'E', 'Kế toán', 'Viên chức', QD),
+    c1(9, 'F', 'Thủ quỹ (kiêm nhiệm)', 'Viên chức', QD),
+  ], a1: [], a2: [] });
+  assert.deepEqual(maDong(rs, 3), ['L09']);
+  assert.deepEqual(maDong(rs, 5), []);
+  assert.deepEqual(maDong(rs, 7), ['CL1', 'CL2']);
+  assert.deepEqual(maDong(rs, 9), ['CL4']);
+  assert.equal(rs.dongLoi, 2);
+});
+
+test('mức ưu tiên: ≥50% dòng lỗi và tối thiểu 10 dòng → 1; có lỗi → 2; chỉ chất lượng → 3; sạch → 4', () => {
+  const loi = (n) => Array.from({ length: n }, (_, i) => c1(3 + i, `M${i}`, `Vị trí ${String.fromCharCode(97 + i)}`, 'Viên chức', ''));
+  const sach = (n) => Array.from({ length: n }, (_, i) => c1(30 + i, `S${i}`, `Chức danh ${String.fromCharCode(97 + i)}`, 'Viên chức', QD));
+  assert.equal(raSoatCong({ c1: [...loi(10), ...sach(10)], a1: [], a2: [] }).mucUuTien, '1 - Ưu tiên chỉnh sửa');
+  assert.equal(raSoatCong({ c1: [...loi(9), ...sach(1)], a1: [], a2: [] }).mucUuTien, '2 - Có lỗi C1');
+  assert.equal(raSoatCong({ c1: [c1(3, 'E', 'Kế toán', 'Viên chức', QD), c1(4, 'F', 'Kế toán', 'Viên chức', QD)], a1: [], a2: [] }).mucUuTien, '3 - Có vấn đề A1/A2, chất lượng');
+  assert.equal(raSoatCong({ c1: sach(3), a1: [], a2: [{ so: 3, duLieu: { C: 'S0', B: '' } }, { so: 4, duLieu: { C: 'S1' } }, { so: 5, duLieu: { C: 'S2' } }] }).mucUuTien, '4 - Chưa phát hiện vấn đề');
+});
+
+test('rà soát A1/A2: không số hiệu căn cứ, nhiệm vụ chưa có công việc, công việc trỏ NV không tồn tại, VTVL chưa giao việc', () => {
+  const rs = raSoatCong({
+    c1: [c1(3, 'V1', 'A', 'Viên chức', QD), c1(4, 'V2', 'B', 'Viên chức', QD)],
+    a1: [{ so: 3, duLieu: { A: 'NV1', B: 'Nhiệm vụ 1', D: 'Quyết định số 12/QĐ-UBND' } }, { so: 4, duLieu: { A: 'NV2', B: 'Nhiệm vụ 2', D: 'theo quy định Điều lệ Đảng' } }],
+    a2: [{ so: 3, duLieu: { A: 'CV1', B: 'NV1', C: 'V1', D: 'Việc 1' } }, { so: 4, duLieu: { A: 'CV2', B: 'NV9', C: 'V1', D: 'Việc 2' } }],
+  });
+  const so = (nhan) => rs.vanDe.find((v) => v.nhan.startsWith(nhan))?.so;
+  assert.equal(so('nhiệm vụ không có số hiệu'), 1);
+  assert.equal(so('nhiệm vụ chưa có công việc'), 1);
+  assert.equal(so('công việc trỏ tới nhiệm vụ không có'), 1);
+  assert.equal(so('VTVL chưa được giao công việc'), 1);
+});
+
+test('tên tệp docx bỏ đuôi và ký tự cấm', () => {
+  assert.equal(tenTepDocx('15.11.VTVL.SNV.xlsx'), 'BaoCao_ThamDinh_15.11.VTVL.SNV.docx');
+  assert.equal(tenTepDocx('a/b:c.xls'), 'BaoCao_ThamDinh_a_b_c.docx');
+  assert.equal(tenTepDocx('.xlsx'), 'BaoCao_ThamDinh_bo_bieu.docx');
+});
+
+test('docx: thoát ký tự XML và bỏ ký tự điều khiển', () => {
+  assert.equal(thoatXml('a<b>&"c\u0001'), 'a&lt;b&gt;&amp;&quot;c');
+  const x = documentXml([{ k: 'p', c: 'Tom & <Jerry>' }]);
+  assert.ok(x.includes('Tom &amp; &lt;Jerry&gt;'));
+});
+
+test('docx: gói ZIP đủ phần bắt buộc và XML đúng cấu trúc', async () => {
+  const k = dungBaoCao(bcMau(), { tenTep: 'x.xlsx', ngay: '16/11/2026', xacNhan: true }, raSoatCong({ c1: [], a1: [], a2: [] }));
+  const byte = await taoDocx(k);
+  assert.equal(String.fromCharCode(byte[0], byte[1]), 'PK');
+  const zip = await JSZip.loadAsync(byte);
+  for (const f of ['[Content_Types].xml', '_rels/.rels', 'word/document.xml', 'word/styles.xml', 'word/_rels/document.xml.rels']) assert.ok(zip.file(f), f);
+  const doc = await zip.file('word/document.xml').async('string');
+  assert.ok(doc.includes('BÁO CÁO THẨM ĐỊNH BỘ BIỂU VỊ TRÍ VIỆC LÀM'));
+  assert.equal((doc.match(/<w:tbl>/g) ?? []).length, (doc.match(/<\/w:tbl>/g) ?? []).length);
+  assert.ok((doc.match(/<w:tbl>/g) ?? []).length >= 4);
+});
